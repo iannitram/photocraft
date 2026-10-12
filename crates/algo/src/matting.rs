@@ -5,7 +5,7 @@
 //!   fits a local linear model `α ≈ aᵀI + b` in every window, so the mask takes on the image's
 //!   soft transitions (hair, blur) inside a band of `radius` pixels around the selection edge.
 //!   "Smart radius" adapts the band per pixel to the transition width observed in the image.
-//! * Then, in Photoshop's order: Smooth, Feather (Gaussian, σ = feather / 2), Contrast and
+//! * Then, in Photoshop's order: Smooth, Feather (Gaussian, σ = feather), Contrast and
 //!   Shift Edge (grey dilation / erosion).
 //! * **Decontaminate colours** replaces fringe colours by the normalised-convolution average of
 //!   nearby fully selected pixels, blended by `amount` and the fringe's transparency.
@@ -57,8 +57,12 @@ impl RefineParams {
     fn smooth_sigma(&self) -> f32 {
         self.smooth.clamp(0.0, 100.0) / 100.0 * 4.0
     }
+    /// Photoshop's feather radius is the Gaussian's σ, as for Select › Modify › Feather and a
+    /// mask's Feather (`selection_blur::feather`, `photocraft_compose::masks::feather_sigma`,
+    /// measured on Photoshop 27.11 and fitted on the psd-tools corpus). It was `feather / 2`:
+    /// Select and Mask feathered half as wide as Photoshop and as the other two (#214).
     fn feather_sigma(&self) -> f32 {
-        self.feather.max(0.0) / 2.0
+        self.feather.max(0.0)
     }
     /// Signed shift in pixels, fractional. 100% is `max(radius, 4)` px, clamped to ±64.
     fn shift_amount(&self) -> f32 {
@@ -740,6 +744,17 @@ mod tests {
         let s = refine_buffer(Some(&sharp), &m, w, h, &RefineParams { radius: 10.0, smart_radius: true, ..Default::default() });
         let soft = s[10 * w..11 * w].iter().filter(|v| **v > 0.05 && **v < 0.95).count();
         assert!(soft <= 2, "sharp edge became soft: {soft}");
+    }
+
+    #[test]
+    fn feather_radius_is_the_gaussian_sigma() {
+        // A step edge at x = 30 feathered by 4 px: 3.5 px outside it the mask is 1 − Φ(3.5 / 4)
+        // ≈ 0.19 (σ = 2 gave 0.04).
+        let (w, h) = (80usize, 4usize);
+        let m: Vec<f32> = (0..w * h).map(|i| if (i % w) < 30 { 1.0 } else { 0.0 }).collect();
+        let f = refine_buffer(None, &m, w, h, &RefineParams { feather: 4.0, ..Default::default() });
+        let v = f[2 * w + 33];
+        assert!((v - 0.19).abs() < 0.02, "{v}");
     }
 
     #[test]
