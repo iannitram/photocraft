@@ -43,37 +43,55 @@ pub fn interleave(planes: &[Option<&[u8]>], fill: &[Vec<u8>], n: usize, s: Sampl
     let ch = planes.len();
     let row = ch * bps;
     let mut out = vec![0u8; n * row];
-    // One band of rows per core, written straight into its slice of the shared output: the
-    // per-pixel channel loop stays, but a band holds ~1/cores of a 20 MP image's iterations
-    // instead of all of them.
-    let bs = bands(n);
-    let parts: Vec<Vec<u8>> = par_map(bs.clone(), |band| {
-        let mut part = vec![0u8; band.len() * row];
-        for (i, p) in band.clone().enumerate() {
+    if row == 0 {
+        return out;
+    }
+    // One band of pixels per core, each written straight into its own slice of the output
+    // (no per-band buffer and no second copy, so peak memory is the output alone).
+    let step = bands(n).first().map_or(1, ExactSizeIterator::len);
+    let jobs: Vec<(usize, &mut [u8])> = out.chunks_mut(step * row).enumerate().map(|(k, chunk)| (k * step, chunk)).collect();
+    par_map(jobs, |(first, part)| {
+        if s == SampleType::U8 {
+            // 8-bit: one channel at a time, a straight strided copy with no per-sample dispatch.
+            let len = part.len() / row;
             for (c, plane) in planes.iter().enumerate() {
-                let dst = &mut part[(i * ch + c) * bps..(i * ch + c + 1) * bps];
-                match plane {
-                    Some(pl) if pl.len() >= (p + 1) * bps => {
-                        let src = &pl[p * bps..(p + 1) * bps];
-                        for k in 0..bps {
-                            dst[k] = src[bps - 1 - k];
+                let dst = part.iter_mut().skip(c).step_by(ch);
+                match plane.and_then(|pl| pl.get(first..first + len)) {
+                    Some(src) if invert[c] => dst.zip(src).for_each(|(d, v)| *d = 255 - v),
+                    Some(src) => dst.zip(src).for_each(|(d, v)| *d = *v),
+                    // A short plane: fill the pixels it lacks, as the general path does.
+                    None => {
+                        let src = plane.and_then(|pl| pl.get(first..)).unwrap_or_default();
+                        for (i, d) in dst.enumerate() {
+                            *d = match src.get(i) {
+                                Some(v) if invert[c] => 255 - v,
+                                Some(v) => *v,
+                                None => fill.get(c).and_then(|f| f.first()).copied().unwrap_or(0),
+                            };
                         }
-                        if cfg!(target_endian = "big") {
-                            dst.copy_from_slice(src);
+                    }
+                }
+            }
+            return;
+        }
+        for (i, dst_px) in part.chunks_exact_mut(row).enumerate() {
+            let p = first + i;
+            for (c, (plane, dst)) in planes.iter().zip(dst_px.chunks_exact_mut(bps)).enumerate() {
+                match plane.and_then(|pl| pl.get(p * bps..(p + 1) * bps)) {
+                    Some(src) => {
+                        dst.copy_from_slice(src);
+                        if cfg!(target_endian = "little") {
+                            dst.reverse();
                         }
                         if invert[c] {
                             invert_sample(dst, s);
                         }
                     }
-                    _ => dst.copy_from_slice(&fill[c]),
+                    None => dst.copy_from_slice(&fill[c]),
                 }
             }
         }
-        part
     });
-    for (band, part) in bs.into_iter().zip(parts) {
-        out[band.start * row..band.end * row].copy_from_slice(&part);
-    }
     out
 }
 
@@ -274,6 +292,38 @@ mod tests {
                 let planes_back = deinterleave(&got, 4, s, &invert);
                 let want_back = seq_deinterleave(&got, 4, s, &invert);
                 assert_eq!(planes_back, want_back, "deinterleave n={n}");
+            }
+        }
+    }
+
+    /// A plane shorter than the image (a truncated channel) keeps its samples and fills the
+    /// rest, the same at every depth and across band boundaries.
+    #[test]
+    fn interleave_short_plane_fills_the_tail() {
+        for s in [SampleType::U8, SampleType::U16, SampleType::F32] {
+            let bps = s.bytes();
+            let n = 1001;
+            let full: Vec<u8> = (0..n * bps).map(|i| (i * 7) as u8).collect();
+            let short: Vec<u8> = (0..600 * bps).map(|i| (i * 3) as u8).collect();
+            let fill = vec![vec![9; bps], vec![200; bps]];
+            let out = interleave(&[Some(&full[..]), Some(&short[..])], &fill, n, s, &[false, true]);
+            for p in [0, 599, 600, 1000] {
+                let px = &out[p * 2 * bps..(p + 1) * 2 * bps];
+                let mut want0: Vec<u8> = full[p * bps..(p + 1) * bps].iter().rev().copied().collect();
+                if cfg!(target_endian = "big") {
+                    want0.reverse();
+                }
+                assert_eq!(&px[..bps], &want0[..], "{s:?} p={p}");
+                if p >= 600 {
+                    assert_eq!(&px[bps..], &fill[1][..], "{s:?} p={p}");
+                } else {
+                    let mut want1: Vec<u8> = short[p * bps..(p + 1) * bps].iter().rev().copied().collect();
+                    if cfg!(target_endian = "big") {
+                        want1.reverse();
+                    }
+                    invert_sample(&mut want1, s);
+                    assert_eq!(&px[bps..], &want1[..], "{s:?} p={p}");
+                }
             }
         }
     }
