@@ -289,6 +289,28 @@ fn grabcut_trimap_on_disc() {
 }
 
 #[test]
+fn grabcut_bk_cut_matches_the_automatic_solver() {
+    // A working-resolution GrabCut graph large enough for push/relabel (≥ 4096 free nodes): the
+    // Boykov–Kolmogorov cut GrabCut now runs must label every pixel the same.
+    let (img, _) = disc_scene(160, 120, 80.0, 60.0, 40.0, 3);
+    let n = img.w * img.h;
+    let mut fixed = vec![FREE; n];
+    for y in 0..img.h {
+        for x in 0..img.w {
+            if x < 4 || y < 4 || x + 4 >= img.w || y + 4 >= img.h {
+                fixed[y * img.w + x] = HARD_BG;
+            }
+        }
+    }
+    let (fs, bs): (Vec<_>, Vec<_>) = (img.px[..n / 2].to_vec(), img.px[n / 2..].to_vec());
+    let (fg, bg) = (Gmm::fit(&fs, 5, gmm::DEFAULT_REG).unwrap(), Gmm::fit(&bs, 5, gmm::DEFAULT_REG).unwrap());
+    let (cf, cb) = data_costs(&img, &fg, &bg);
+    let beta = contrast_beta(&img);
+    assert!(fixed.iter().filter(|f| **f == FREE).count() >= 4096);
+    assert_eq!(grid_cut_bk(&img, &cf, &cb, &fixed, grabcut::GAMMA, beta), grid_cut(&img, &cf, &cb, &fixed, grabcut::GAMMA, beta));
+}
+
+#[test]
 fn object_select_disc_full_resolution() {
     let (img, truth) = disc_scene(200, 160, 100.0, 80.0, 50.0, 2);
     let s = ImageSampler { img: &img, origin: (0, 0) };
