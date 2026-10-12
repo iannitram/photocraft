@@ -824,7 +824,7 @@ impl Ex {
             SmartSource::Linked { path } => {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    let bytes = std::fs::read(path).map_err(|e| format!("the linked file {path} can't be read: {e}"))?;
+                    let bytes = read_linked(path)?;
                     let name = path.rsplit(['/', '\\']).next().unwrap_or(path).to_string();
                     self.warnings.push(format!("the linked smart object {name} was embedded (PSD export keeps no external links)"));
                     self.embed(sm.contents_id, &name, &bytes)
@@ -1669,6 +1669,40 @@ fn mask_parameters(user: Option<(f32, f32)>, vector: Option<(f32, f32)>) -> Opti
         | u8::from(p.vector_density.is_some()) << 2
         | u8::from(p.vector_feather.is_some()) << 3;
     (flags != 0).then_some(MaskParameters { flags, ..p })
+}
+
+/// The bytes of a linked smart object's file, to embed it. Only a regular file is read (a
+/// device such as `/dev/zero`, a FIFO, a Windows named pipe or a directory named by a crafted
+/// document would never end, or not be a file), and through `photocraft_format::read_file`,
+/// whose buffer is reserved fallibly: a file larger than the memory available is an error, not
+/// an abort.
+#[cfg(not(target_arch = "wasm32"))]
+fn read_linked(path: &str) -> Result<Vec<u8>, String> {
+    let p = std::path::Path::new(path);
+    if is_device_path(p) {
+        return Err(format!("the linked file {path} is not a regular file"));
+    }
+    match std::fs::metadata(p) {
+        Ok(m) if m.is_file() => photocraft_format::read_file(p).map_err(|e| format!("the linked file {path} can't be read: {e}")),
+        Ok(_) => Err(format!("the linked file {path} is not a regular file")),
+        Err(e) => Err(format!("the linked file {path} can't be read: {e}")),
+    }
+}
+
+/// Whether `p` is in a Windows device namespace (`\\.\pipe\…`, `\\?\GLOBALROOT\…`) or names a
+/// pipe on a server (`\\server\pipe\…`). Windows reports a named pipe as a regular file, and
+/// reading one blocks until its other end writes, so these are refused by name before anything
+/// opens them. A drive path stays allowed in its verbatim form too (`\\?\C:\…`, what
+/// `canonicalize` returns). Other platforms have no path prefixes: always false there.
+#[cfg(not(target_arch = "wasm32"))]
+fn is_device_path(p: &std::path::Path) -> bool {
+    use std::path::{Component, Prefix};
+    let Some(Component::Prefix(prefix)) = p.components().next() else { return false };
+    match prefix.kind() {
+        Prefix::DeviceNS(_) | Prefix::Verbatim(_) => true,
+        Prefix::UNC(_, share) | Prefix::VerbatimUNC(_, share) => share.eq_ignore_ascii_case("pipe"),
+        Prefix::Disk(_) | Prefix::VerbatimDisk(_) => false,
+    }
 }
 
 #[cfg(test)]
