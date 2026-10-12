@@ -423,6 +423,7 @@ fn covered(s: &Map, test: impl Fn(f32) -> bool + Sync) -> Vec<bool> {
 
 /// Distance from each pixel centre inside the shape to the shape's edge
 /// (≤ 0 outside).
+#[cfg(test)]
 fn dist_inside(s: &Map) -> Vec<f32> {
     dist_inside_by(s, Metric::Euclidean)
 }
@@ -454,6 +455,26 @@ fn dist_inside_by(s: &Map, m: Metric) -> Vec<f32> {
         for (x, out) in row.iter_mut().enumerate() {
             let i = y * s.w + x;
             *out = if outside[i] { -0.5 } else { d[i] - 0.5 };
+        }
+    })
+}
+
+/// [`dist_inside`] for precise inner glows: Photoshop measures from every pixel that isn't fully
+/// opaque, not only from the transparent ones. Soft or masked content (a feathered edge, a layer
+/// mask below 100 %) therefore glows over all of its partly transparent area, where measuring
+/// from alpha 0 put it deeper than the glow reaches and drew almost nothing (a real thumbnail's
+/// Screen 30 % inner glow on a gradient-masked smart object). Each distance is to the edge as
+/// coverage places it, mirroring [`dist_outside`]: a pixel of coverage `a` has its centre
+/// `a − ½` inside the edge, and an opaque pixel adds its nearest such pixel's coverage. Next to
+/// a transparent pixel this is exactly [`dist_inside`]. On that thumbnail it also gives the slow
+/// fall-off with opacity Photoshop shows (1 − a / (size + 1) after the default Range).
+fn glow_dist_inside(s: &Map) -> Vec<f32> {
+    let edge = covered(s, |a| a < 1.0 - INSIDE_EPS);
+    let (d, near) = edt_nearest(&edge, s.w, s.h);
+    par_fill(s.w, s.h, 0.0f32, |y, row| {
+        for (x, out) in row.iter_mut().enumerate() {
+            let i = y * s.w + x;
+            *out = if edge[i] { s.v[i].clamp(0.0, 1.0) - 0.5 } else { d[i] - 0.5 + s.v.get(near[i] as usize).map_or(0.0, |a| a.clamp(0.0, 1.0)) };
         }
     })
 }
@@ -1135,7 +1156,7 @@ fn glow_map(shape: &Map, g: &Glow, inner: bool, origin: (i32, i32)) -> Map {
             // Photoshop's 1 − D / (size + 1) beyond the solid part (measured: outer and inner,
             // sizes 10 and 20, spread 0 and 40 %, choke 0 and 30 %: within 1 level; other Range
             // values are unmeasured). The distances here are 0.5 px short of centre to centre.
-            let d = if inner { dist_inside(shape) } else { dist_outside(&src) };
+            let d = if inner { glow_dist_inside(shape) } else { dist_outside(&src) };
             let solid = g.size * g.spread;
             let soft = (g.size + 1.0 - solid).max(1e-3);
             let mut m = Map::new(shape.w, shape.h, 0.0);
@@ -2151,7 +2172,7 @@ fn mix_premul(a: [f32; 4], b: [f32; 4], k: f32) -> [f32; 4] {
 pub enum FieldKind {
     /// `dist_outside` of the shape: precise outer glows.
     Outside,
-    /// `dist_inside` of the shape: precise inner glows.
+    /// `glow_dist_inside` of the shape: precise inner glows.
     Inside,
     /// `bevel_dist_outside` of the shape: the outside distance of chiselled bevels.
     BevelOutside,
@@ -2174,7 +2195,7 @@ pub fn distance_field(kind: FieldKind, alpha: Vec<f32>, w: usize, h: usize, reac
     let s = Map { w, h, v: alpha };
     match kind {
         FieldKind::Outside => dist_outside(&s),
-        FieldKind::Inside => dist_inside(&s),
+        FieldKind::Inside => glow_dist_inside(&s),
         FieldKind::BevelOutside => bevel_dist_outside(&s, &sharp_edges(&s), reach),
         FieldKind::BevelInside => bevel_dist_inside(&s, &sharp_edges(&s), reach),
         FieldKind::StrokeOutside => dist_outside_by(&s, Metric::Chamfer),
@@ -3006,6 +3027,47 @@ mod tests {
                 assert!((at(&c, x) - (1.0 - at(&e, x))).abs() < 1e-5, "{t:?} at {x}");
             }
         }
+    }
+
+    #[test]
+    fn precise_inner_glow_measures_from_partly_transparent_pixels() {
+        // A hard-edged square: the same field as `dist_inside`.
+        let hard = square_shape(40);
+        assert_eq!(glow_dist_inside(&hard), dist_inside(&hard));
+        // Soft content (a 60 % plateau, as under a layer mask below 100 %, inside a feathered rim):
+        // every pixel is an edge, 0.1 px inside it, so a 3 px glow covers all of it (0.5 · (1 − 0.6 / 4)
+        // before Range, times the shape) instead of only the outer 3 px.
+        let n = 40;
+        let mut soft = Map::new(n, n, 0.0);
+        for y in 2..n - 2 {
+            for x in 2..n - 2 {
+                let rim = x.min(y).min(n - 1 - x).min(n - 1 - y) as f32 - 1.0;
+                soft.v[y * n + x] = (0.1 * rim).min(0.6);
+            }
+        }
+        let g = Glow {
+            common: photocraft_doc::FxCommon::new(BlendMode::Screen, 1.0),
+            paint: FxPaint::Color(photocraft_color::Color::WHITE),
+            technique: GlowTechnique::Precise,
+            spread: 0.0,
+            size: 3.0,
+            contour: Contour::Linear,
+            anti_alias: false,
+            range: 1.0,
+            jitter: 0.0,
+            noise: 0.0,
+            source: GlowSource::Edge,
+        };
+        let m = glow_map(&soft, &g, true, (0, 0));
+        let centre = (n / 2) * n + n / 2;
+        assert!((m.v[centre] - 0.5 * (1.0 - 0.6 / 4.0) * 0.6).abs() < 1e-5, "glow in the middle: {}", m.v[centre]);
+        // An anti-aliased rim moves an opaque pixel's distance by its neighbour's coverage only.
+        let mut aa = Map::new(9, 1, 1.0);
+        aa.v[0] = 0.0;
+        aa.v[1] = 0.5;
+        let d = glow_dist_inside(&aa);
+        assert_eq!((d[0], d[1]), (-0.5, 0.0));
+        assert!((d[2] - 1.0).abs() < 1e-6 && (d[3] - 2.0).abs() < 1e-6, "{d:?}");
     }
 
     #[test]
