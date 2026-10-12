@@ -517,16 +517,46 @@ fn be_to_ne_plane(plane: &[u8], s: SampleType, n: usize) -> Vec<u8> {
     interleave(&[Some(plane)], &[zero_sample(s)], n, s, &[false])
 }
 
+/// The first (up to three) channels of the merged image shown as RGB: the preview of a
+/// multichannel file, and the fallback when [`photocraft_psd::PsdFile::composite_rgba8`] fails.
+/// Checks the RGBA size against the decode budget and allocates fallibly, so a huge bitmap or
+/// multichannel file is an error rather than an abort.
+fn first_channels_as_rgba(h: &photocraft_psd::Header, all: &[u8]) -> Result<photocraft_psd::RgbaImage, photocraft_psd::PsdError> {
+    use photocraft_psd::PsdError;
+    let (w, hh) = (h.width as usize, h.height as usize);
+    let n = w.checked_mul(hh).ok_or(PsdError::LimitExceeded("composite size overflow"))?;
+    let len = n
+        .checked_mul(4)
+        .filter(|&len| len as u64 <= photocraft_psd::compression::MAX_DECODED_BYTES)
+        .ok_or(PsdError::LimitExceeded("RGBA output exceeds MAX_DECODED_BYTES"))?;
+    let plane = h.row_bytes().checked_mul(hh).ok_or(PsdError::LimitExceeded("plane size overflow"))?;
+    let mut data = Vec::new();
+    data.try_reserve_exact(len).map_err(|_| PsdError::LimitExceeded("not enough memory for RGBA output"))?;
+    data.resize(len, 255);
+    for c in 0..3.min(usize::from(h.channels)) {
+        let bytes = c
+            .checked_mul(plane)
+            .and_then(|start| all.get(start..start.checked_add(plane)?))
+            .ok_or_else(|| PsdError::Invalid("channel size mismatch".into()))?;
+        let p = photocraft_psd::pixels::plane_to_u8(bytes, h.depth, w, hh)?;
+        for (px, v) in data.as_chunks_mut::<4>().0.iter_mut().zip(p) {
+            px[c] = v;
+        }
+    }
+    Ok(photocraft_psd::RgbaImage { left: 0, top: 0, width: h.width, height: h.height, data })
+}
+
 fn unicode_names(data: &[u8]) -> Vec<String> {
     let mut out = Vec::new();
     let mut at = 0;
     while at + 4 <= data.len() {
         let n = u32::from_be_bytes([data[at], data[at + 1], data[at + 2], data[at + 3]]) as usize;
         at += 4;
-        let Some(b) = data.get(at..at + n * 2) else { break };
+        let Some(end) = n.checked_mul(2).and_then(|b| at.checked_add(b)) else { break };
+        let Some(b) = data.get(at..end) else { break };
         let units: Vec<u16> = b.as_chunks::<2>().0.iter().map(|c| u16::from_be_bytes([c[0], c[1]])).collect();
         out.push(String::from_utf16_lossy(&units).trim_end_matches('\0').to_string());
-        at += n * 2;
+        at = end;
     }
     out
 }
@@ -668,7 +698,9 @@ pub fn psd_to_document_with(file: &PsdFile, ctl: &photocraft_raster::Interrupt) 
     }
 
     let (w, hh) = (h.width as usize, h.height as usize);
-    let n = w * hh;
+    // Saturating: on 32-bit targets (wasm) a 300000 px square overflows usize; every use of `n`
+    // sits behind a decode that is capped well below that, or the budget check that refuses it.
+    let n = w.saturating_mul(hh);
     let canvas = Rect::new(0, 0, h.width as i32, h.height as i32);
     // The merged composite is decoded only when something consumes it: a flattened or
     // multichannel file (it *is* the image), or extra alpha/spot channels behind the colour
@@ -774,16 +806,8 @@ pub fn psd_to_document_with(file: &PsdFile, ctl: &photocraft_raster::Interrupt) 
         }
         let rgba = file.composite_rgba8().or_else(|_| {
             // Multichannel: show the first channels as RGB.
-            let all = merged.clone().ok_or_else(|| photocraft_psd::PsdError::Invalid("no merged image".into()))??;
-            let plane = h.row_bytes() * hh;
-            let mut data = vec![255u8; n * 4];
-            for c in 0..3.min(usize::from(h.channels)) {
-                let p = photocraft_psd::pixels::plane_to_u8(&all[c * plane..(c + 1) * plane], h.depth, w, hh)?;
-                for i in 0..n {
-                    data[i * 4 + c] = p[i];
-                }
-            }
-            Ok::<_, photocraft_psd::PsdError>(photocraft_psd::RgbaImage { left: 0, top: 0, width: h.width, height: h.height, data })
+            let Some(Ok(all)) = merged.as_ref() else { return Err(photocraft_psd::PsdError::Invalid("no merged image".into())) };
+            first_channels_as_rgba(h, all)
         });
         if let Ok(img) = rgba {
             let mut s = Surface::new(fmt);
@@ -848,4 +872,45 @@ pub fn psd_to_document_with(file: &PsdFile, ctl: &photocraft_raster::Interrupt) 
     }
     ctl.progress(1.0);
     Some((doc, cx.warnings))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use photocraft_psd::{ColorMode as PsdMode, Header, PsdError, Version};
+
+    /// A bitmap or multichannel file too big for the RGBA budget is refused before any
+    /// allocation (this used to be an infallible `vec![255; n * 4]` of up to 360 GB).
+    #[test]
+    fn first_channels_preview_refuses_huge_files() {
+        let h = Header::new(Version::Psb, 300_000, 300_000, 1, 1, PsdMode::Bitmap);
+        assert!(matches!(first_channels_as_rgba(&h, &[]), Err(PsdError::LimitExceeded(_))));
+        let h = Header::new(Version::Psb, 100_000, 100_000, 3, 8, PsdMode::Multichannel);
+        assert!(matches!(first_channels_as_rgba(&h, &[0; 16]), Err(PsdError::LimitExceeded(_))));
+    }
+
+    /// Short merged data is an error, not an out-of-bounds slice.
+    #[test]
+    fn first_channels_preview_checks_plane_sizes() {
+        let h = Header::new(Version::Psd, 2, 2, 3, 8, PsdMode::Multichannel);
+        assert!(first_channels_as_rgba(&h, &[0; 5]).is_err());
+        let all = [10, 11, 12, 13, 20, 21, 22, 23, 30, 31, 32, 33];
+        let img = first_channels_as_rgba(&h, &all).unwrap();
+        assert_eq!(img.data, [10, 20, 30, 255, 11, 21, 31, 255, 12, 22, 32, 255, 13, 23, 33, 255]);
+    }
+
+    /// Two channels fill red and green; blue and alpha stay opaque white.
+    #[test]
+    fn first_channels_preview_two_channels() {
+        let h = Header::new(Version::Psd, 1, 1, 2, 8, PsdMode::Multichannel);
+        assert_eq!(first_channels_as_rgba(&h, &[7, 9]).unwrap().data, [7, 9, 255, 255]);
+    }
+
+    /// A name count near `u32::MAX` must not overflow the offset arithmetic.
+    #[test]
+    fn unicode_names_huge_count() {
+        let mut data = vec![0, 0, 0, 1, 0, b'A'];
+        data.extend_from_slice(&u32::MAX.to_be_bytes());
+        assert_eq!(unicode_names(&data), vec!["A".to_string()]);
+    }
 }
