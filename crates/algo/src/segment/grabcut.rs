@@ -9,7 +9,7 @@
 use photocraft_geom::Rect;
 
 use super::gmm::{DEFAULT_REG, Gmm};
-use super::{FREE, HARD_BG, HARD_FG, Region, RgbImage, Sampler, contrast_beta, data_costs, grid_cut, subsample};
+use super::{FREE, HARD_BG, HARD_FG, Region, RgbImage, Sampler, contrast_beta, data_costs, grid_cut_bk, subsample};
 
 /// Definite background.
 pub const BG: u8 = 0;
@@ -54,7 +54,7 @@ pub fn grabcut(img: &RgbImage, trimap: &mut [u8], iters: usize) -> Option<(Gmm, 
             Some((f, b)) => (f.refit(&fs).unwrap_or_else(|| f.clone()), b.refit(&bs).unwrap_or_else(|| b.clone())),
         };
         let (cf, cb) = data_costs(img, &fg, &bg);
-        let cut = grid_cut(img, &cf, &cb, &fixed, GAMMA, beta);
+        let cut = grid_cut_bk(img, &cf, &cb, &fixed, GAMMA, beta);
         let mut changed = 0usize;
         for (t, fgnd) in trimap.iter_mut().zip(&cut) {
             if *t == PR_BG || *t == PR_FG {
