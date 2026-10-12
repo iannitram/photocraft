@@ -36,6 +36,8 @@
 - `fix/select-and-mask-feather-sigma`: not measured against Photoshop by anyone. Upstream's #214 audit asks for a Photoshop-made oracle before the formula changes.
 - `fix/psd-export-ids`: both new tests were run against upstream's exporter (main b3309e27) and fail there, as the commit says; they pass with the fix.
 - Gates on `ours` 9478bcf6 (= main b3309e27 + the seven branches): fmt, psd / io / algo / compose / xtask tests, `xtask layers`, `xtask wasm`, GPU crate tests on a real GPU and the engine lib tests all pass. Clippy 1.95 stops on upstream's own code (`photocraft-affinity`); nothing is reported in the lines our branches touch.
+- Corpus tests on `ours` 9478bcf6: `cargo xtask test-corpus` (psd, codecs, io, engine; release) passes, 3,170 tests, 0 failed. 2 h 2 min on a 24-thread desktop with `CARGO_BUILD_JOBS=6`, so it does not fit a cloud night: leave it to daytime sessions.
+- Four real files on the new build: renders are byte-identical to the previous `ours`, also after save and reopen; against Photoshop's merged image (checked with a separate parser) psd-b0a2f2 is 0.008, psd-27a113 and psd-353a73 0.004, psd-313e15 0.169 (finding N5).
 - The 5 GPU-adapter tests: 4 pass on a real GPU. `prefs_ui::shortcut_capture_tests::ctrl_k_is_recorded_as_ctrl_k_not_the_control_key` hung for 39 minutes and was killed (upstream's test; it seems to wait for a real key press).
 - No upstream PR has been opened for any branch.
 
