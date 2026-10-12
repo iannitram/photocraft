@@ -54,6 +54,8 @@ struct Ex {
     cmyk: bool,
     version: Version,
     next_id: u32,
+    /// Every PSD layer id handed out so far (kept, numbered or fresh), so `fresh_id` never repeats one.
+    used_ids: std::collections::HashSet<u32>,
     /// PSD ids assigned to document layers (kept from `psd_id` when unique).
     layer_ids: std::collections::HashMap<photocraft_doc::LayerId, u32>,
     /// The generated `Txt2` object number of each type layer (a preserved `TySh` keeps its own
@@ -368,10 +370,15 @@ impl Ex {
         (MaskData::Mask(pm), Some(self.encode(-2, &plane, w, h)))
     }
 
-    /// Ids for section dividers: above every layer id.
+    /// Ids for section dividers: above every layer id, skipping 0 and ids already taken. A kept
+    /// `psd_id` can be as high as `u32::MAX`, so the count wraps around instead of overflowing.
     fn fresh_id(&mut self) -> u32 {
-        self.next_id += 1;
-        self.next_id
+        loop {
+            self.next_id = self.next_id.wrapping_add(1);
+            if self.next_id != 0 && self.used_ids.insert(self.next_id) {
+                return self.next_id;
+            }
+        }
     }
 
     fn layer_id(&mut self, l: &Layer) -> u32 {
@@ -1393,6 +1400,7 @@ fn document_to_psd_nested(doc: &Document, opts: &PsdExportOptions, depth: u32, c
         cmyk: fmt.mode == ColorMode::Cmyk,
         version,
         next_id: 0,
+        used_ids: Default::default(),
         layer_ids: Default::default(),
         canvas: doc.bounds(),
         records: Vec::new(),
@@ -1433,9 +1441,12 @@ fn document_to_psd_nested(doc: &Document, opts: &PsdExportOptions, depth: u32, c
             }
         }
         ex.next_id = used.iter().copied().max().unwrap_or(0);
+        ex.used_ids = used;
         // Text objects' number in the generated `Txt2` (#1348): a preserved `TySh` keeps the
         // number it already names — its `Txt2` object must sit at that slot for `apply_txt2` —
-        // and new layers get the next free number.
+        // and new layers get the next free number. Two passes, like the layer ids above: every kept
+        // number is reserved before any new layer is numbered, so a new type layer below an
+        // imported one can't take its slot (and with it the imported layer's `Txt2` object).
         let mut used_txt = std::collections::HashSet::new();
         let mut next_txt = 0i32;
         ex.text_index = Default::default();
@@ -1443,18 +1454,21 @@ fn document_to_psd_nested(doc: &Document, opts: &PsdExportOptions, depth: u32, c
             let LayerContent::Text(t) = &l.content else {
                 continue;
             };
-            let kept = t.psd_raw.as_deref().and_then(|d| photocraft_text::psd::text_index(d));
-            let index = match kept {
-                Some(i) if used_txt.insert(i) => i,
-                _ => {
-                    while used_txt.contains(&next_txt) {
-                        next_txt += 1;
-                    }
-                    used_txt.insert(next_txt);
-                    next_txt
-                }
-            };
-            ex.text_index.insert(l.id, index);
+            if let Some(i) = t.psd_raw.as_deref().and_then(|d| photocraft_text::psd::text_index(d))
+                && used_txt.insert(i)
+            {
+                ex.text_index.insert(l.id, i);
+            }
+        }
+        for (_, _, l) in &walk {
+            if !matches!(l.content, LayerContent::Text(_)) || ex.text_index.contains_key(&l.id) {
+                continue;
+            }
+            while used_txt.contains(&next_txt) {
+                next_txt += 1;
+            }
+            used_txt.insert(next_txt);
+            ex.text_index.insert(l.id, next_txt);
         }
     }
     // Progress: one unit per layer record, then the merged composite (#3389).
