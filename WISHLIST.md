@@ -4,7 +4,7 @@ Our priorities for this fork, in order. **Ian owns this file.** The nightly agen
 
 Use: YouTube thumbnail production. Hardware: AMD Strix Halo laptop (Ryzen AI Max+ 395, Radeon 8060S, Linux, RADV Vulkan) and an Apple-Silicon Mac.
 
-*Last changed: 2026-10-11 (first version).*
+*Last changed: 2026-10-12 (real PSDs allowed for item 1).*
 
 ## 1. Open and edit real Photoshop thumbnail PSDs
 
@@ -12,7 +12,7 @@ Layered thumbnail PSDs made in Photoshop must open, edit and save correctly: lay
 
 - Upstream issues: #1281, #2469 (Photoshop accepting PSDs we write)
 - Code areas: `crates/psd`, and the io/format code that reads and writes PSD
-- Note: Ian's own PSDs are private and get tested on his machine during the day. Use upstream's public corpus here.
+- Real files: the nightly agent may test against Ian's own thumbnail PSDs (read-only, via the Dropbox connector). They're private: refer to them only by label (`psd-xxxxxx`), never commit them or anything derived from them, and reproduce any bug they expose with a synthetic file.
 
 ## 2. Select and Mask → Select Subject that works on people
 
