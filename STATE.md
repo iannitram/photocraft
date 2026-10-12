@@ -13,16 +13,31 @@
 
 ## Open threads
 
-- **Fork `main` vs "merge"**: Ian asked on 2026-10-12 to "merge and commit". The work was merged on `wip/merged-2026-10-12`, not on fork `main`, because the sync rule fast-forwards `main` to upstream only. Waiting for Ian. Until he answers, keep fast-forwarding `main` and keep work on branches.
+- **Fork layout (decided 2026-10-12)**: `main` stays an exact mirror of upstream (fast-forward only, never our commits). Each change is one commit on its own branch. **`ours`** is `main` plus every branch marked "in `ours`" in the Branches table, merged with `--no-ff` in table order; it is the build Ian runs. Rebuild `ours` from scratch whenever `main` moves or a branch changes (push with `--force-with-lease`). `wip/merged-2026-10-12` is retired: don't rebuild it or build on it (it is still on the fork until Ian deletes it; everything in it is on the other branches).
 - **Disk (~40 GB)**: `cargo test --workspace` doesn't fit in one go. Use the crate-by-crate script described in SETUP.md (delete `target/debug/deps` executables, `target/debug/examples` and `incremental` after each crate). Works; about 38 min in total.
 - **Corpus**: the download is solved by `fix/corpus-git-fallback` (needed until it lands upstream: run `cargo xtask corpus --all` from that branch, or merge it into the branch under test). The *test* run (`cargo xtask test-corpus`, release + thin LTO + `codegen-units=1`) for just psd+io did not finish in ~45 min here. Next night, start it early, right after the checks, or ask Ian about a dev-profile option.
 - Low-priority findings not yet fixed: ZIP merged image fully inflated at open just to validate (`crates/psd/src/image_data.rs:49`); double decode of the merged image for flat files (`psd_import.rs`); odd-length mask records with parameters (`psd_export.rs:350`, needs a Photoshop check); unchecked `index * plane` (`image_data.rs:43`).
 - Open review findings from the 07:22 run (details in its log): R2 Select Subject re-renders the composite per strip and per refine tile (high perf; `crates/algo/src/segment/mod.rs:121-152`, `:609-611`), R2b huge-canvas strip OOM, R4 linked smart object read on PSD export has no size cap or authorize check (`psd_export.rs:807`), R5 global blocks copied on save (`psd_export.rs:1529`), R6 .pcraft writer lacks ZIP64 (`format/src/zip.rs:39-43`), R7 duplicate manifest ids (`format/src/convert.rs:373`).
-- Upstream PR #2580 rewrites `interleave` like `perf/psd-interleave-in-place`; expect a conflict (put to Ian).
+- Upstream PR #2580 rewrites `interleave` like `perf/psd-interleave-in-place`. Decided 2026-10-12: ours is dropped from `ours` and not offered upstream; the branch stays (un-rebased, on dbca08cd) until #2580 lands, then delete it. Don't rebase it or build on it.
 - 2026-10-12: two runs (07:01 and 07:22) ran at once. The 07:01 run did the real-PSD pass (see its section for the table); the 07:22 run wrapped up early.
-- Older branches (`fix/psd-import-fallback-alloc`, `perf/psd-interleave-in-place`, `fix/corpus-git-fallback`, `fix/psd-export-ids`, `wip/merged-2026-10-12`) are on main dbca08cd, 64 commits behind b564f2ca: rebase them next night.
+- Rebase state (2026-10-12, daytime session): `main` = upstream b3309e27. All seven branches in `ours` are rebased onto it (one commit each, no conflicts) and `ours` is rebuilt on top.
+- Upstream #3651 (budget check inside `composite_rgba8`) merged on 10-12. `fix/psd-import-fallback-alloc` is still needed: the importer's own fallback preview is not covered by it.
 - Open from the 07:01 run: N3b (authorize gate not asked for linked files at save), N5 (text stroke edges), the inner-glow trade-off on `inner-glow-center-precise-choke30.psd` (Needs Ian). Other #214 audit points not done: whole-pixel fields in Select and Mask, existing mask metadata reset on output.
 - nightly-notes was force-pushed once (2026-10-12 ~11:30, lease-protected) to drop a log line that described one of Ian's files; the old commit may stay in GitHub's cache for a while.
+
+## Done locally (daytime sessions; don't redo)
+
+2026-10-12, Windows desktop (RTX 3090 Ti, Rust 1.95):
+
+- Every branch below was read against the surrounding code and upstream's open PRs (476 scanned). Only `perf/psd-interleave-in-place` duplicates one (#2580).
+- `perf/grabcut-bk-maxflow`: the "identical selections" claim was checked on 240 random graphs (flat images, quantised noise, tied data costs, random hard seeds) with both solvers: zero pixels differ. Bench (`bench_smartselect`, 6016 px, release): Object Selection 413 -> 206 ms, Select Subject 327 -> 225 ms, same IoU.
+- `fix/psd-export-linked-read`: the first version did not hold on Windows. A named pipe reports itself as a regular file there, so the check let it through and the read blocked forever. Fixed on the branch (device-namespace paths and server pipes are refused by name; a verbatim drive path is still embedded; two Windows tests). Still open from R4 / N3b: no authorize check and no size cap.
+- `fix/precise-inner-glow-soft-edges`: one real file goes 0.149 -> 0.008 against Photoshop's merged image; three others unchanged. Caution for anyone building on it: the model is fitted on one file, and it moves the glow about half a pixel outward on every anti-aliased edge, not only on soft content.
+- `fix/select-and-mask-feather-sigma`: not measured against Photoshop by anyone. Upstream's #214 audit asks for a Photoshop-made oracle before the formula changes.
+- `fix/psd-export-ids`: both new tests were run against upstream's exporter (main b3309e27) and fail there, as the commit says; they pass with the fix.
+- Gates on `ours` 9478bcf6 (= main b3309e27 + the seven branches): fmt, psd / io / algo / compose / xtask tests, `xtask layers`, `xtask wasm`, GPU crate tests on a real GPU and the engine lib tests all pass. Clippy 1.95 stops on upstream's own code (`photocraft-affinity`); nothing is reported in the lines our branches touch.
+- The 5 GPU-adapter tests: 4 pass on a real GPU. `prefs_ui::shortcut_capture_tests::ctrl_k_is_recorded_as_ctrl_k_not_the_control_key` hung for 39 minutes and was killed (upstream's test; it seems to wait for a real key press).
+- No upstream PR has been opened for any branch.
 
 ## Design notes
 
@@ -54,14 +69,15 @@ All 8-bit RGB; no vector masks, clipping or adjustment layers; blends Normal / P
 
 ## Branches
 
-| Branch | Purpose | Status |
-|---|---|---|
-| `fix/psd-import-fallback-alloc` | Huge bitmap/multichannel PSD no longer aborts on open; wasm overflow; resource padding | ready for Ian (after test-corpus on Z13) |
-| `perf/psd-interleave-in-place` | PSD channel interleave in place, 8-bit ~6x | needs Z13 (numbers + test-corpus); overlaps upstream #2580 |
-| `fix/corpus-git-fallback` | `cargo xtask corpus` works where codeload.github.com is refused | ready for Ian |
-| `fix/psd-export-ids` | Imported type layers keep their Txt2 slot when a new text layer is added; no lyid overflow (review R1, R3) | ready for Ian (Photoshop check on Z13) |
-| `wip/merged-2026-10-12` | main + the first three branches above (Ian's "merge" request) | active; on dbca08cd, rebuild from the branches if main moves |
-| `fix/precise-inner-glow-soft-edges` | Precise Inner Glow measured from every not-fully-opaque pixel (real-file fidelity) | ready for Ian (trade-off on one oracle; GPU check on Z13) |
-| `perf/grabcut-bk-maxflow` | GrabCut cuts use Boykov-Kolmogorov: Select Subject 1.1-2.8x faster, same masks | ready for Ian (Z13 timing) |
-| `fix/psd-export-linked-read` | Linked smart-object file embedded only if a regular file (no /dev/zero hang) | ready for Ian |
-| `fix/select-and-mask-feather-sigma` | Select and Mask Feather σ = radius, as Photoshop | ready for Ian |
+`main` = upstream b3309e27 (2026-10-12). `ours` = `main` + the "yes" rows, merged in this order.
+
+| Branch | Purpose | In `ours` | Status |
+|---|---|---|---|
+| `fix/psd-import-fallback-alloc` | Huge bitmap/multichannel PSD no longer aborts on open; wasm overflow; resource padding | yes | reviewed; ready for an upstream PR (Ian decides) |
+| `fix/corpus-git-fallback` | `cargo xtask corpus` works where codeload.github.com is refused | yes | reviewed; ready for an upstream PR (Ian decides). The nightly needs it to fetch the corpus |
+| `fix/psd-export-ids` | Imported type layers keep their Txt2 slot when a new text layer is added; no lyid overflow (review R1, R3) | yes | reviewed; ready for an upstream PR (Ian decides) |
+| `fix/psd-export-linked-read` | Linked smart-object file embedded only if a regular file (no /dev/zero hang) | yes | reviewed; ready for an upstream PR (Ian decides). Authorize gate and size cap still open |
+| `fix/precise-inner-glow-soft-edges` | Precise Inner Glow measured from every not-fully-opaque pixel (real-file fidelity) | yes | **held**: needs a shareable Photoshop-made test file; one public oracle gets worse on one measure |
+| `perf/grabcut-bk-maxflow` | GrabCut cuts use Boykov-Kolmogorov: Select Subject 1.1-2.8x faster, same masks | yes | reviewed; ready for an upstream PR (Ian decides) |
+| `fix/select-and-mask-feather-sigma` | Select and Mask Feather sigma = radius | yes | **held**: unverified against Photoshop (#214 audit) |
+| `perf/psd-interleave-in-place` | PSD channel interleave in place | **no** | dropped: duplicates upstream PR #2580. Delete once #2580 lands |
