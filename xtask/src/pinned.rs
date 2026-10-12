@@ -3,7 +3,8 @@
 //! `corpus_pins.rs`. Corpora land in `corpus/<dest>/` (gitignored, never committed).
 //!
 //! Fetching downloads the GitHub tarball (`codeload`) of each pinned commit with a generic
-//! User-Agent, extracts only the corpus subdirectory, checks every file against the manifest and
+//! User-Agent (or, where that host is refused, builds the same tarball from a shallow `git fetch`
+//! of the pin), extracts only the corpus subdirectory, checks every file against the manifest and
 //! swaps the verified files into place. An already complete, verified copy is left alone, so
 //! re-running is cheap (and a CI cache restore is verified the same way).
 //! `--update-manifest` rewrites the manifest from the download (after moving a pin).
@@ -13,6 +14,27 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::{root, run, sha256};
+
+/// Writes `tgz`, a gzipped tarball of `repo` at `commit` with every path under `top/` (the
+/// layout of a codeload tarball), from a shallow `git fetch` of that one commit.
+fn git_tarball(dir: &Path, repo: &str, commit: &str, top: &str, tgz: &Path) -> Result<(), String> {
+    let _ = std::fs::remove_dir_all(dir);
+    std::fs::create_dir_all(dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
+    let git = |args: &[&str]| {
+        let mut c = Command::new("git");
+        c.arg("-C").arg(dir).args(["-c", &format!("http.userAgent={USER_AGENT}")]).args(args);
+        c
+    };
+    run(git(&["init", "-q"]), "git init")?;
+    let url = format!("https://github.com/{repo}.git");
+    run(git(&["fetch", "-q", "--depth", "1", &url, commit]), &format!("git fetch {url} {commit}"))?;
+    let prefix = format!("--prefix={top}/");
+    let mut archive = git(&["archive", "--format=tar.gz", &prefix, "-o"]);
+    archive.arg(tgz).arg("FETCH_HEAD");
+    run(archive, "git archive")?;
+    let _ = std::fs::remove_dir_all(dir);
+    Ok(())
+}
 
 /// Generic User-Agent: no personal details in requests.
 pub const USER_AGENT: &str = "Photocraft-dev";
@@ -172,11 +194,16 @@ impl PinnedCorpus {
         for (i, up) in self.upstreams.iter().enumerate() {
             let tgz = staging.join(format!("archive{i}.tar.gz"));
             let url = format!("https://codeload.github.com/{}/tar.gz/{}", up.repo, up.commit);
-            let mut curl = Command::new("curl");
-            curl.args(["-fsSL", "--retry", "3", "-A", USER_AGENT, "-o"]).arg(&tgz).arg(&url);
-            run(curl, &format!("curl {url}"))?;
             let repo_name = up.repo.rsplit('/').next().unwrap_or(up.repo);
             let top = format!("{repo_name}-{}", up.commit);
+            let mut curl = Command::new("curl");
+            curl.args(["-fsSL", "--retry", "3", "-A", USER_AGENT, "-o"]).arg(&tgz).arg(&url);
+            if let Err(e) = run(curl, &format!("curl {url}")) {
+                // Some networks (sandboxes, proxies) refuse the codeload tarball host but allow
+                // plain git over https: build the same tarball from a shallow fetch of the pin.
+                eprintln!("{}: {e}; trying git", self.name);
+                git_tarball(&staging.join(format!("git{i}")), up.repo, up.commit, &top, &tgz).map_err(|g| format!("{e}; git fallback: {g}"))?;
+            }
             let out = staging.join(format!("u{i}"));
             std::fs::create_dir_all(&out).map_err(|e| format!("create {}: {e}", out.display()))?;
             let mut tar = Command::new("tar");
