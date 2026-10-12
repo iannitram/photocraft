@@ -4,9 +4,12 @@
 
 - Done (2026-10-12): `crates/psd/src/*` and the PSD parts of `crates/io` (`psd_import.rs`, `psd_export.rs`, `pixels.rs`). Findings are in `nightly/2026-10-12.md`.
 - Done (2026-10-12, 07:22 run, read-only subagent review): `crates/io/src/psd_export.rs`, `crates/format`, `crates/algo/src/segment/`, `crates/engine/src/smartselect_cmds.rs`, `crates/engine/src/cutout_cmds.rs`. Findings R1-R7 are in `nightly/2026-10-12.md` (07:22 section).
+- Done (2026-10-12, 07:01 run, guided by the real PSDs): precise inner glow in `crates/compose/src/effects.rs`, GrabCut / max-flow choice in `crates/algo/src/segment/`, Select and Mask feather in `crates/algo/src/matting.rs`, linked-file embedding in `psd_export.rs`.
 - **Next:**
-  1. Item 3: GPU compose and effects (`crates/gpu`), and the over-budget rows in `docs/scorecard.md`.
-  2. Then the rest of the workspace, crate by crate.
+  1. The text-stroke edge difference on 4 real files (finding N5 in the 07:01 log: outside Stroke under a half-covered glyph pixel, `effects.rs` around the outside-stroke share).
+  2. Select Subject: the 68k-node low-resolution cut still costs ~330 ms (N2b). Ideas: reuse the flow between GrabCut iterations, fewer iterations once labels settle, a coarser working size for thumbnails.
+  3. Item 3: GPU compose and effects (`crates/gpu`), and the over-budget rows in `docs/scorecard.md`.
+  4. Then the rest of the workspace, crate by crate.
 
 ## Open threads
 
@@ -17,10 +20,37 @@
 - Open review findings from the 07:22 run (details in its log): R2 Select Subject re-renders the composite per strip and per refine tile (high perf; `crates/algo/src/segment/mod.rs:121-152`, `:609-611`), R2b huge-canvas strip OOM, R4 linked smart object read on PSD export has no size cap or authorize check (`psd_export.rs:807`), R5 global blocks copied on save (`psd_export.rs:1529`), R6 .pcraft writer lacks ZIP64 (`format/src/zip.rs:39-43`), R7 duplicate manifest ids (`format/src/convert.rs:373`).
 - Upstream PR #2580 rewrites `interleave` like `perf/psd-interleave-in-place`; expect a conflict (put to Ian).
 - 2026-10-12: two runs (07:01 and 07:22) ran at once. The 07:01 run did the real-PSD pass (see its section for the table); the 07:22 run wrapped up early.
+- Older branches (`fix/psd-import-fallback-alloc`, `perf/psd-interleave-in-place`, `fix/corpus-git-fallback`, `fix/psd-export-ids`, `wip/merged-2026-10-12`) are on main dbca08cd, 64 commits behind b564f2ca: rebase them next night.
+- Open from the 07:01 run: N3b (authorize gate not asked for linked files at save), N5 (text stroke edges), the inner-glow trade-off on `inner-glow-center-precise-choke30.psd` (Needs Ian). Other #214 audit points not done: whole-pixel fields in Select and Mask, existing mask metadata reset on output.
+- nightly-notes was force-pushed once (2026-10-12 ~11:30, lease-protected) to drop a log line that described one of Ian's files; the old commit may stay in GitHub's cache for a while.
 
 ## Design notes
 
-(none yet; wishlist item 2's model backend is claimed upstream by #2788 / #3826 / #2995 / #1199, so no design was started)
+- Wishlist item 2's model backend is claimed upstream by #2788 / #3826 / #2995 / #1199, so no design was started.
+- **Precise Inner Glow model** (fitted on one real file, 2026-10-12): Photoshop measures the inside distance from every pixel below full opacity, each at `a − ½` from the edge; opaque pixels add their nearest such pixel's coverage. With #3578's ramp (0.5 at the edge to 0 at size + 1, then Range) this matches the file to 0.007. Still open: a curved anti-aliased centre-glow oracle gets more pixels over 2/255 (see the 07:01 log).
+- **Max-flow choice**: push/relabel wins on narrow band cuts (Quick Selection, finish_region, Content-Aware Fill seams); Boykov-Kolmogorov wins on GrabCut's whole-image cuts (measured 2026-10-12).
+
+## Real PSDs (by label; format facts only)
+
+Labels are `psd-` + the first 6 hex characters of sha256 of the Dropbox file id. The label → file map is not kept here (the fork is public); recompute it from a folder listing. Baseline 2026-10-12 on main b564f2ca (cloud CPU). Vs Photoshop: largest error / pixels over 2/255, our render against the file's merged image (`oracle_diff`).
+
+| Label | Size | Layers | Opens | Round trip | Edit+save+reopen | vs Photoshop (main) | Select Subject ms (main / BK branch) |
+|---|---|---|---|---|---|---|---|
+| psd-2025e2 | 1494x840 8-bit RGB | 10 | yes | yes | yes | 0.004 PASS | 958 / 941 |
+| psd-217bbc | 1494x840 | 4 | yes | yes | yes (no type layer) | 0.006 PASS | 2380 / 1470 |
+| psd-27a113 | 1920x1080 | 12 | yes | yes | yes | 0.005 PASS | 1072 / 793 |
+| psd-313e15 | 1494x840 | 9 | yes | yes | yes | 0.169 / 0.30 % | 1147 / 853 |
+| psd-353a73 | 1920x1080 | 11 | yes | yes | yes | 0.006 PASS | 2170 / 1380 |
+| psd-4a3295 | 1440x1440 | 14 | yes | yes | yes | 0.002 PASS | 816 / 289 |
+| psd-5b98bb | 1494x840 | 21 | yes | yes | yes | 0.005 PASS | 1421 / 859 |
+| psd-6b50ac | 2560x1440 | 5 | yes | yes | yes | 0.155 / 0.24 % | 534 / 455 |
+| psd-6ec13a | 1920x1080 | 9 | yes | yes | yes | 0.005 PASS | 2005 / 1756 |
+| psd-84df1b | 1494x840 | 7 | yes | yes | yes | 0.153 / 0.52 % | 461 / 379 |
+| psd-9d2240 | 1494x840 | 7 | yes | yes | yes | 0.153 / 0.29 % | 2161 / 1372 |
+| psd-a4ec8f | 2560x1440 | 16 | yes | yes | yes | 0.018 / 0.02 % | 1051 / 551 |
+| psd-b0a2f2 | 1494x840 | 8 | yes | yes | yes | 0.149 / 3.07 % (0.007 PASS with the glow fix) | 2273 / 1268 |
+
+All 8-bit RGB; no vector masks, clipping or adjustment layers; blends Normal / Pass Through; effects Stroke, Drop Shadow, Color Overlay, Inner Shadow, Inner Glow. About 30 more PSDs in the folder are untested.
 
 ## Branches
 
@@ -30,4 +60,8 @@
 | `perf/psd-interleave-in-place` | PSD channel interleave in place, 8-bit ~6x | needs Z13 (numbers + test-corpus); overlaps upstream #2580 |
 | `fix/corpus-git-fallback` | `cargo xtask corpus` works where codeload.github.com is refused | ready for Ian |
 | `fix/psd-export-ids` | Imported type layers keep their Txt2 slot when a new text layer is added; no lyid overflow (review R1, R3) | ready for Ian (Photoshop check on Z13) |
-| `wip/merged-2026-10-12` | main 7e5d2ce6 + the three branches above (Ian's "merge" request) | active; rebuild from the branches if main moves |
+| `wip/merged-2026-10-12` | main + the first three branches above (Ian's "merge" request) | active; on dbca08cd, rebuild from the branches if main moves |
+| `fix/precise-inner-glow-soft-edges` | Precise Inner Glow measured from every not-fully-opaque pixel (real-file fidelity) | ready for Ian (trade-off on one oracle; GPU check on Z13) |
+| `perf/grabcut-bk-maxflow` | GrabCut cuts use Boykov-Kolmogorov: Select Subject 1.1-2.8x faster, same masks | ready for Ian (Z13 timing) |
+| `fix/psd-export-linked-read` | Linked smart-object file embedded only if a regular file (no /dev/zero hang) | ready for Ian |
+| `fix/select-and-mask-feather-sigma` | Select and Mask Feather σ = radius, as Photoshop | ready for Ian |

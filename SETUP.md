@@ -27,3 +27,17 @@ test steps to completion (or to their actual failure) and fills in the "TBD" row
 | GitHub API, 2026-10-12 07:22 run | Repo-scoped `gh api repos/storytold/photocraft/...` worked (upstream attached that night). `search/issues` was refused (403, "sessions are bound to their configured repositories"), and so was `gh api --paginate`, because it follows `repositories/{id}` links. Page by hand with `?page=N` |
 | Dropbox connector | Available in the 2026-10-12 07:01/07:22 sessions. A recursive `list_folder` of the thumbnails folder returns ~270 entries, more than the tool output limit, so it is saved to a file; filter it with `jq`. One `download_link` call for 12 files, then `curl` straight away, worked |
 | Concurrent runs | On 2026-10-12 a 07:01 and a 07:22 run were alive at the same time and both wrote to `nightly-notes`. Always fetch and rebase before pushing, and append only to your own section |
+
+## Additions from the 2026-10-12 07:01 run
+
+| | |
+|---|---|
+| Dropbox connector | Available in this run (it was missing the night before). `list_folder` on the thumbnails folder (recursive, files only) returned 269 entries with `has_more`; 45 PSDs on the first page. `download_link` works for up to 25 files per call; `curl -sSL -o` right away, 13 files (~220 MB) in under a minute |
+| Python tools | `pip install` points at a different Python than `python3`; use `python3 -m pip install -q --target /tmp/pylib psd-tools` (MIT; brings numpy, Pillow), then `python3 -I` with `sys.path.insert(0, '/tmp/pylib')`. psd-tools is an independent PSD reader, used to check files we save. No scipy |
+| ImageMagick | Preinstalled (`convert`, `compare`, `identify`). `convert "file.psd[0]"` gives Photoshop's merged image |
+| Profiling | No `perf`. `gdb` works: sample `gdb -batch -p <pid> -ex "thread apply all bt"` on a dev build (line tables) to find hot spots |
+| Fidelity tool | `cargo build --release -p photocraft-io --example oracle_diff` (~2-4 min); `oracle_diff <dir>` prints max error / bad % against each file's merged image, 737 corpus files in 5 s; `bylayer`, `worst`, `row`, `layerpx` modes for one file |
+| Corpus | `cargo xtask corpus --all` from a worktree of `fix/corpus-git-fallback` (`CARGO_TARGET_DIR` pointed at the main target): 48 s, 123 MB; move `corpus/` into the checkout under test |
+| Rebuild times | Release CLI after an engine/algo change: 6.5-9 min. Release `oracle_diff` after a compose change: 1.5-3 min. Dev CLI from scratch: ~7 min |
+| Test timings (main dbca08cd) | io 403 s (117 s warm), algo 289-383 s, engine 472 s, automation 355 s, photocraft 373 s + build, web 563 s incl. build, ui-egui 364 s + ~10 min build (5 GPU-adapter failures as before). `crate_test.sh` per crate with cleanup kept `target/` under 16 GB |
+| Timeouts | A test run that has to rebuild dependencies can exceed 595 s; re-running continues from where cargo stopped |
