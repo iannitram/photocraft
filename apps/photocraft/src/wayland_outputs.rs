@@ -102,10 +102,27 @@ mod query {
     }
 }
 
+/// Whether the compositor may be asked over a second connection of our own; `var` reads an
+/// environment variable. Only on an ordinary Wayland desktop, where `WAYLAND_DISPLAY` names the
+/// compositor's socket and anyone may connect to it again. Not when `WAYLAND_SOCKET` is set: that
+/// is one connection, already open and handed to this process, which `connect_to_env` would take
+/// and the window library then could not have. And not under gamescope (Steam's Game Mode), which
+/// shows the one app full screen and is not a desktop to fit a window to.
+pub fn may_ask_compositor(var: impl Fn(&str) -> Option<String>) -> bool {
+    let set = |name: &str| var(name).is_some_and(|v| !v.is_empty());
+    let gamescope = set("GAMESCOPE_WAYLAND_DISPLAY")
+        || set("SteamGamepadUI")
+        || var("XDG_CURRENT_DESKTOP").is_some_and(|d| d.split(':').any(|part| part.trim().eq_ignore_ascii_case("gamescope")));
+    set("WAYLAND_DISPLAY") && !set("WAYLAND_SOCKET") && !gamescope
+}
+
 /// [`quarter_turned_modes`] of the running Wayland compositor's outputs; empty when there is
-/// none to ask.
+/// none to ask, or it is not to be asked ([`may_ask_compositor`]).
 #[cfg(target_os = "linux")]
 pub fn quarter_turned_modes_now() -> Vec<[u32; 2]> {
+    if !may_ask_compositor(|name| std::env::var(name).ok()) {
+        return Vec::new();
+    }
     let outputs = query::outputs().unwrap_or_default();
     let modes = quarter_turned_modes(&outputs);
     if !modes.is_empty() {
@@ -128,6 +145,29 @@ mod tests {
         assert_eq!(quarter_turned_modes(&[upright, handheld, no_mode, square, handheld]), vec![[1600, 2560]]);
         assert!(quarter_turned_modes(&[upright, no_mode, square]).is_empty());
         assert!(quarter_turned_modes(&[]).is_empty());
+    }
+
+    #[test]
+    fn the_compositor_is_asked_only_on_an_ordinary_wayland_desktop() {
+        let ask = |vars: &[(&str, &str)]| {
+            let vars: Vec<(String, String)> = vars.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect();
+            may_ask_compositor(|name| vars.iter().find(|(k, _)| k == name).map(|(_, v)| v.clone()))
+        };
+        // A Plasma or GNOME Wayland session.
+        assert!(ask(&[("WAYLAND_DISPLAY", "wayland-0"), ("XDG_CURRENT_DESKTOP", "KDE")]));
+        assert!(ask(&[("WAYLAND_DISPLAY", "wayland-1"), ("XDG_CURRENT_DESKTOP", "ubuntu:GNOME"), ("WAYLAND_SOCKET", "")]));
+        // X11, or nothing at all: there is no compositor to ask.
+        assert!(!ask(&[("DISPLAY", ":0"), ("XDG_CURRENT_DESKTOP", "KDE")]));
+        assert!(!ask(&[("WAYLAND_DISPLAY", "")]));
+        assert!(!ask(&[]));
+        // A connection handed over by the parent is the window library's, never ours.
+        assert!(!ask(&[("WAYLAND_DISPLAY", "wayland-0"), ("WAYLAND_SOCKET", "7")]));
+        assert!(!ask(&[("WAYLAND_SOCKET", "7")]));
+        // gamescope, by any of its three signs.
+        assert!(!ask(&[("WAYLAND_DISPLAY", "gamescope-0"), ("XDG_CURRENT_DESKTOP", "gamescope")]));
+        assert!(!ask(&[("WAYLAND_DISPLAY", "wayland-0"), ("XDG_CURRENT_DESKTOP", "KDE:Gamescope")]));
+        assert!(!ask(&[("WAYLAND_DISPLAY", "wayland-0"), ("GAMESCOPE_WAYLAND_DISPLAY", "gamescope-0")]));
+        assert!(!ask(&[("WAYLAND_DISPLAY", "wayland-0"), ("XDG_CURRENT_DESKTOP", "KDE"), ("SteamGamepadUI", "1")]));
     }
 
     #[test]
