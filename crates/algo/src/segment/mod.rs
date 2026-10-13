@@ -599,6 +599,7 @@ pub fn finish_region(sampler: &dyn Sampler, window: Rect, step: usize, low: &[bo
             refine_band(sampler, window, step, low, &band, lw, lh, fg, bg, &mut mask);
         }
     }
+    craft_stage::stage("finish.antialias");
     antialias_u8(&mut mask, w, h);
     trim_region(Region { bbox: window, mask })
 }
@@ -626,7 +627,11 @@ fn refine_band(sampler: &dyn Sampler, window: Rect, step: usize, low: &[bool], b
         }
         ty += T;
     }
+    craft_stage::stage_with("finish.refine-band", &[("tiles", tiles.len() as f64)]);
     let run = |t: &Rect| -> (Rect, Vec<bool>) {
+        // self-logging: one scope per tile (they run in parallel), so the stall watch names a stuck one.
+        let _tile = craft_stage::scope("segment.tile");
+        craft_stage::stage_with("cut", &[("x", f64::from(t.x0)), ("y", f64::from(t.y0)), ("width", f64::from(t.width())), ("height", f64::from(t.height()))]);
         let r = t.inflate(HALO).intersect(&window);
         let img = sampler.rgb(r);
         let (rw, rh) = (r.width() as usize, r.height() as usize);

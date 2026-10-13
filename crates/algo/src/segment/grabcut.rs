@@ -43,7 +43,8 @@ pub fn grabcut(img: &RgbImage, trimap: &mut [u8], iters: usize) -> Option<(Gmm, 
         })
         .collect();
     let mut models: Option<(Gmm, Gmm)> = None;
-    for _ in 0..iters.max(1) {
+    for iteration in 0..iters.max(1) {
+        craft_stage::stage_with("grabcut.models", &[("iteration", (iteration + 1) as f64)]);
         let (mut fs, mut bs) = (Vec::new(), Vec::new());
         for (p, t) in img.px.iter().zip(trimap.iter()) {
             if is_fg(*t) { fs.push(*p) } else { bs.push(*p) }
@@ -54,6 +55,7 @@ pub fn grabcut(img: &RgbImage, trimap: &mut [u8], iters: usize) -> Option<(Gmm, 
             Some((f, b)) => (f.refit(&fs).unwrap_or_else(|| f.clone()), b.refit(&bs).unwrap_or_else(|| b.clone())),
         };
         let (cf, cb) = data_costs(img, &fg, &bg);
+        craft_stage::stage_with("grabcut.cut", &[("iteration", (iteration + 1) as f64)]);
         let cut = grid_cut_bk(img, &cf, &cb, &fixed, GAMMA, beta);
         let mut changed = 0usize;
         for (t, fgnd) in trimap.iter_mut().zip(&cut) {

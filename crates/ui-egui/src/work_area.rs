@@ -134,6 +134,13 @@ pub fn fit_window(ctx: &egui::Context) -> bool {
     if maximized == Some(true) || fullscreen == Some(true) || !m.is_finite() || !outer.is_finite() || fits(outer.size(), m) {
         return false;
     }
+    log::warn!(
+        "decision: window: {:.0} x {:.0} points does not fit a {:.0} x {:.0}-point screen less {TASKBAR} for a taskbar; maximizing it",
+        outer.width(),
+        outer.height(),
+        m.x,
+        m.y
+    );
     ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
     true
 }
