@@ -11,12 +11,7 @@
 use std::ffi::{OsStr, OsString};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
-use std::time::SystemTime;
 
-use craft_log::cli::CliLogger;
-use craft_log::filter::Filter;
-use craft_log::line::{Line, timestamp};
 use craft_log::report::{Report, mask_home, newest_file};
 
 /// What craft-log needs to know about PhotoCraft. The filter is the window app's own default
@@ -39,8 +34,6 @@ const REASON_BYTES: usize = 4096;
 pub const SECRET_ARGUMENTS: &[&str] = &["--control-token"];
 /// Environment switches whose value is a secret: the report names them and never shows them.
 pub const SECRET_SWITCHES: &[&str] = &["PHOTOCRAFT_CONTROL_TOKEN"];
-/// What stands in a log line or a report where a secret was.
-pub const HIDDEN: &str = "***";
 
 /// The settings folder, resolved the way the window app resolves it: `PHOTOCRAFT_CONFIG_DIR`,
 /// else `<exe dir>/PhotoCraftData` when a portable marker sits beside the program, else the
@@ -82,111 +75,12 @@ pub fn leaves_no_trace(args: &[OsString]) -> bool {
     crate::SUBCOMMANDS.iter().find(|s| s.name == first).is_some_and(|sub| matches!(crate::parse(sub, rest), Ok(None)))
 }
 
-/// The values given to the [`SECRET_ARGUMENTS`] among `args`.
-pub fn secret_values(args: &[OsString]) -> Vec<String> {
-    let mut found = Vec::new();
-    let mut next_is_secret = false;
-    for arg in args {
-        let arg = arg.to_string_lossy();
-        if std::mem::take(&mut next_is_secret) {
-            found.push(arg.into_owned());
-        } else if SECRET_ARGUMENTS.contains(&arg.as_ref()) {
-            next_is_secret = true;
-        } else if let Some((flag, value)) = arg.split_once('=')
-            && SECRET_ARGUMENTS.contains(&flag)
-        {
-            found.push(value.to_owned());
-        }
-    }
-    found.retain(|v| !v.is_empty());
-    found
-}
-
-/// `text` with every one of `secrets` replaced by [`HIDDEN`].
-pub fn without_secrets(text: &str, secrets: &[String]) -> String {
-    secrets.iter().fold(text.to_owned(), |text, secret| text.replace(secret.as_str(), HIDDEN))
-}
-
-/// The command line as the log shows it (`args` with the program first): the value of a secret
-/// argument hidden, the home folder shown as `~`, an argument that is not Unicode shown lossily.
-pub fn command_line(args: &[OsString], home: Option<&str>) -> String {
-    let home = home.filter(|h| h.len() > 1);
-    let mut shown = Vec::with_capacity(args.len());
-    let mut next_is_secret = false;
-    for arg in args {
-        let arg = arg.to_string_lossy();
-        if std::mem::take(&mut next_is_secret) {
-            shown.push(HIDDEN.to_owned());
-            continue;
-        }
-        next_is_secret = SECRET_ARGUMENTS.contains(&arg.as_ref());
-        shown.push(match arg.split_once('=') {
-            Some((flag, _)) if SECRET_ARGUMENTS.contains(&flag) => format!("{flag}={HIDDEN}"),
-            _ => home.map_or_else(|| arg.to_string(), |h| arg.replace(h, "~")),
-        });
-    }
-    shown.join(" ")
-}
-
-/// The switches the report shows: [`craft_log::report::switches`], with the value of a secret
-/// one replaced by a note that it is set.
-pub fn shown_switches(vars: &[(String, String)]) -> Vec<(String, String)> {
-    craft_log::report::switches(vars, SWITCH_PREFIXES)
-        .into_iter()
-        .map(|(name, value)| if SECRET_SWITCHES.contains(&name.as_str()) { (name, format!("set ({HIDDEN})")) } else { (name, mask_home(&value)) })
-        .collect()
-}
-
-static LOGGER: OnceLock<CliLogger> = OnceLock::new();
-
-/// Install the logger for this run. Call in `main` once [`leaves_no_trace`] has said no.
-///
-/// This is `craft_log::cli::install` put together here from the crate's public parts, for one
-/// reason: the crate's own writes the whole command line into the log, the value of
-/// `--control-token` with it, and offers no way to name a secret argument. Same file, same two
-/// first lines, same switches; the command line goes through [`command_line`]. To be replaced by
-/// the crate's call once it takes the secret arguments' names.
+/// Install the logger for this run. Call in `main` once [`leaves_no_trace`] has said no. The
+/// crate masks the value of every [`SECRET_ARGUMENTS`] in the command line it logs and in every
+/// later line.
 pub fn install() {
     let dir = this_settings_dir().map(|d| d.join("logs"));
-    let (spec, source) = APP.filter_spec();
-    let filter = Filter::parse(&spec);
-    let max = filter.max().max(log::LevelFilter::Info);
-    let json = craft_log::filter::json_from_env();
-    let stderr = matches!(std::env::var("CRAFT_LOG_STDERR").ok().as_deref().map(str::trim), Some("1" | "true" | "yes"));
-    let mut file = dir.as_deref().and_then(|d| craft_log::cli::open(d, APP.name).ok());
-    let home = std::env::var("HOME").ok();
-    let args: Vec<OsString> = std::env::args_os().collect();
-    let first = [APP.build_line(), format!("command line: {}; log filter \"{spec}\" from {}", command_line(&args, home.as_deref()), source.name())];
-    for message in &first {
-        let thread = std::thread::current();
-        let line = Line {
-            ts: &timestamp(SystemTime::now()),
-            level: log::Level::Info,
-            pid: Some(std::process::id()),
-            thread: thread.name().unwrap_or("?"),
-            target: APP.name,
-            message,
-        };
-        let text = line.text();
-        craft_log::collapse::remember(&text);
-        let formatted = if json { line.json() } else { text };
-        if stderr {
-            let _ = std::io::stderr().write_all(formatted.as_bytes());
-        }
-        // One write per line, as the crate does, so lines from runs appending together stay whole.
-        if let Some((_, f, written)) = file.as_mut()
-            && f.write_all(formatted.as_bytes()).is_ok()
-        {
-            *written = written.saturating_add(u64::try_from(formatted.len()).unwrap_or(u64::MAX));
-        }
-    }
-    let logger = LOGGER.get_or_init(|| CliLogger::new(filter, json, stderr, file));
-    if log::set_logger(logger).is_err() {
-        return;
-    }
-    log::set_max_level(max);
-    craft_log::set_log_path(logger.path().map(Path::to_path_buf));
-    craft_log::stall::start(APP.name);
+    craft_log::cli::install(&APP, dir.as_deref(), SECRET_ARGUMENTS);
 }
 
 /// Standard error, with the end of what was written kept for the log.
@@ -225,21 +119,10 @@ impl<W: Write> Write for Capture<W> {
 /// Call with the exit code and what the run printed on standard error, just before exiting: a
 /// failing run logs that text whole (so the log holds why, not only the code) and prints
 /// `log: <path>` as its last line on standard error.
-///
-/// The text is logged without the value of any secret argument, should an error message quote
-/// one. Nothing here can fail the run: a standard error that cannot be written to is left alone.
 pub fn finish(code: i32, said: &str) {
-    if code == 0 {
-        return;
-    }
-    let Some(logger) = LOGGER.get() else { return };
-    let args: Vec<OsString> = std::env::args_os().skip(1).collect();
-    let said = without_secrets(said, &secret_values(&args));
-    let reason = if said.is_empty() { format!("exit code {code}") } else { format!("exit code {code}: {said}") };
-    log::error!(target: APP.name, "{reason}");
-    log::Log::flush(logger);
-    if let Some(p) = logger.path() {
-        let _ = writeln!(std::io::stderr(), "log: {}", p.display());
+    if code != 0 {
+        let reason = if said.is_empty() { format!("exit code {code}") } else { format!("exit code {code}: {said}") };
+        craft_log::cli::failed(&APP, &reason);
     }
 }
 
@@ -268,14 +151,7 @@ pub fn report() -> Report {
     r.add("screens", "screens and window", "known to the window app only: its log's \"screen\" and \"window:\" lines");
     r.add("folders", "settings", show(settings.as_deref()));
     r.add("folders", "preferences", show(settings.as_ref().map(|d| d.join("preferences.json")).as_deref()));
-    let vars: Vec<(String, String)> = std::env::vars_os().filter_map(|(k, v)| Some((k.into_string().ok()?, v.to_string_lossy().into_owned()))).collect();
-    let switches = shown_switches(&vars);
-    if switches.is_empty() {
-        r.add("switches", "environment", "none");
-    }
-    for (name, value) in switches {
-        r.add("switches", &name, value);
-    }
+    r.add_switches(SWITCH_PREFIXES, SECRET_SWITCHES);
     r.add_helpers();
     let file = |name: &str| logs.as_ref().map(|d| d.join(name)).filter(|p| p.is_file());
     let (window, previous, cli) = (file(WINDOW_LOG_FILE), file(PREVIOUS_WINDOW_LOG_FILE), file(&craft_log::cli::file_name(APP.name)));
@@ -387,44 +263,6 @@ mod tests {
             // Not Unicode: a usage error whatever else is on the line (`run_os`), so it is logged.
             assert!(!leaves_no_trace(&[OsString::from("--help"), OsString::from_vec(vec![0x66, 0xff])]));
         }
-    }
-
-    #[test]
-    fn a_secret_arguments_value_is_never_in_the_command_line() {
-        let token = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-        let line = command_line(&os(&["/home/u/bin/photocraft-cli", "serve", "--control-token", token, "--port", "7878"]), Some("/home/u"));
-        assert_eq!(line, "~/bin/photocraft-cli serve --control-token *** --port 7878");
-        let line = command_line(&os(&["photocraft-cli", "mcp", &format!("--control-token={token}"), "--control-token-file", "/home/u/t"]), Some("/home/u"));
-        assert_eq!(line, "photocraft-cli mcp --control-token=*** --control-token-file ~/t");
-        // The flag as the last argument, the flag given twice, a value that looks like a flag.
-        assert_eq!(command_line(&os(&["p", "serve", "--control-token"]), None), "p serve --control-token");
-        assert_eq!(command_line(&os(&["p", "--control-token", "a", "--control-token", "--control-token"]), None), "p --control-token *** --control-token ***");
-        assert_eq!(command_line(&os(&["p", "convert", "/home/u/a.psd", "b.png"]), Some("/home/u")), "p convert ~/a.psd b.png");
-        assert_eq!(command_line(&os(&["p", "convert", "/a.psd"]), Some("/")), "p convert /a.psd");
-    }
-
-    #[test]
-    fn a_secret_quoted_in_an_error_is_taken_out_before_it_is_logged() {
-        let args = os(&["serve", "--control-token", "s3cret", "--control-token=other", "--control-token=", "--port", "1"]);
-        assert_eq!(secret_values(&args), ["s3cret", "other"]);
-        assert_eq!(without_secrets("error: token `s3cret` is not 64 hex digits (other)", &secret_values(&args)), "error: token `***` is not 64 hex digits (***)");
-        assert_eq!(secret_values(&os(&["convert", "a.png", "b.png"])), Vec::<String>::new());
-        assert_eq!(without_secrets("unchanged", &[]), "unchanged");
-    }
-
-    #[test]
-    fn a_secret_switch_is_named_and_not_shown() {
-        let vars: Vec<(String, String)> = [
-            ("PHOTOCRAFT_CONTROL_TOKEN", "0123456789abcdef"),
-            ("PHOTOCRAFT_CONTROL_TOKEN_FILE", "/tmp/token"),
-            ("PHOTOCRAFT_CONFIG_DIR", "/tmp/cfg"),
-            ("PATH", "/bin"),
-        ]
-        .iter()
-        .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
-        .collect();
-        let shown: Vec<String> = shown_switches(&vars).into_iter().map(|(k, v)| format!("{k}={v}")).collect();
-        assert_eq!(shown, ["PHOTOCRAFT_CONFIG_DIR=/tmp/cfg", "PHOTOCRAFT_CONTROL_TOKEN=set (***)", "PHOTOCRAFT_CONTROL_TOKEN_FILE=/tmp/token"]);
     }
 
     #[test]
