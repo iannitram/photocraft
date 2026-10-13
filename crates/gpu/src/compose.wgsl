@@ -52,6 +52,7 @@ const F_HDR: u32 = 262144u;     // 32-bit float document: HDR blends and Exposur
 const F_QUANT: u32 = 32768u;    // lerp: A rounded to p0.x steps (adjustment results, integer docs)
 const F_ADD_DIFF: u32 = 16384u;  // lerp: A + (B - C) premultiplied (clips on pass-through groups)
 const F_TEXT_GAMMA: u32 = 8192u; // blend / atop / fx merge: type layer, mix coverage at gamma p4.w
+const F_REPLACE: u32 = 524288u;  // effect paint: the paint replaces the layer where it lies (effects::stroke_replace)
 
 @group(0) @binding(0) var<uniform> chunk: Chunk;
 @group(0) @binding(1) var<uniform> op: Op;
@@ -1014,6 +1015,18 @@ fn fs_fxpaint(in: VOut) -> @location(0) vec4<f32> {
         if (k <= 0.0) { return dst; }
         let t = 1.0 - clamp(m, 0.0, 1.0);
         return composite(op.mode, dst, vec4(lut(0, t), lut(1, t), lut(2, t), lut(3, t) * k), 1.0);
+    }
+    if ((op.flags & F_REPLACE) != 0u) {
+        // effects::stroke_replace: the band holds only the stroke, the rest of the pixel the layer.
+        if (m <= 0.0) { return dst; }
+        let band = clamp(m, 0.0, 1.0);
+        let ink = fx_color(d);
+        if (ink.a <= 0.0) { return dst; }
+        let stroke = band * clamp(op.opacity * ink.a, 0.0, 1.0);
+        let rest = (1.0 - band) * dst.a;
+        let alpha = stroke + rest;
+        if (alpha <= 0.0) { return vec4(dst.rgb, 0.0); }
+        return vec4((ink.rgb * stroke + dst.rgb * rest) / alpha, min(alpha, 1.0));
     }
     let k = m * op.opacity;
     if (k <= 0.0) { return dst; }

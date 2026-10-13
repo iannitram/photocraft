@@ -1959,6 +1959,22 @@ pub(crate) fn composite_with_effects_prepared(
         for ((mv, a), dv) in m.v.iter_mut().zip(&shape.v).zip(&din) {
             *mv = if inside(*a) { (in_w + 0.5 - dv).clamp(0.0, 1.0) } else { 0.0 };
         }
+        if stroke_replaces(st) {
+            // Photoshop's stroke takes the place of what it covers: below 100 % opacity the
+            // backdrop shows through it, not the layer's fill (a 1 px Inside stroke of black at
+            // 25 % on opaque white type leaves the backdrop at 75 % along the edge, measured on
+            // files from Photoshop CC 2014 and CC 2019; painted over the fill it was 191 grey).
+            let mut ink = Buffer::transparent(big);
+            let band = Map { w, h, v: m.v.iter().map(|&k| if k > 0.0 { 1.0 } else { 0.0 }).collect() };
+            paint_fx(&mut ink, &band, &st.paint, frame(st), anchor, big, BlendMode::Normal, 1.0, patterns);
+            for ((p, k), s) in lay.px.iter_mut().zip(&m.v).zip(&ink.px) {
+                // No ink (a missing pattern): nothing is painted, as for other paints.
+                if *k > 0.0 && s[3] > 0.0 {
+                    *p = stroke_replace(*p, *s, *k, st.common.opacity);
+                }
+            }
+            continue;
+        }
         paint_fx(&mut lay, &m, &st.paint, frame(st), anchor, big, st.common.blend, st.common.opacity, patterns);
     }
     for (i, e) in rev() {
@@ -2091,6 +2107,28 @@ pub fn outline_share(cov: f32, l: f32) -> f32 {
     let outside = (1.0 - cov.clamp(0.0, 1.0)).max(0.0);
     let rest = 1.0 - l.clamp(0.0, 1.0);
     if rest <= 1e-6 { 1.0 } else { (outside / rest).min(1.0) }
+}
+
+/// Whether a stroke's inside part replaces the layer beneath it ([`stroke_replace`]) instead of
+/// being painted over it: a Normal stroke below 100 % opacity. At 100 % the two are the same;
+/// other blend modes are painted over the layer as before (not measured in Photoshop yet).
+pub fn stroke_replaces(st: &photocraft_doc::StrokeFx) -> bool {
+    st.common.blend == BlendMode::Normal && st.common.opacity < 1.0
+}
+
+/// The layer pixel `layer` (straight alpha) with the part `k` of it that a stroke band covers
+/// replaced by the stroke's `ink` at `opacity`: the band holds only the stroke, the rest of the
+/// pixel keeps the layer.
+pub fn stroke_replace(layer: [f32; 4], ink: [f32; 4], k: f32, opacity: f32) -> [f32; 4] {
+    let k = k.clamp(0.0, 1.0);
+    let stroke = k * (opacity * ink[3]).clamp(0.0, 1.0);
+    let rest = (1.0 - k) * layer[3];
+    let alpha = stroke + rest;
+    if alpha <= 0.0 {
+        return [layer[0], layer[1], layer[2], 0.0];
+    }
+    let mix = |c: usize| (ink[c] * stroke + layer[c] * rest) / alpha;
+    [mix(0), mix(1), mix(2), alpha.min(1.0)]
 }
 
 /// (inside width, outside width) of a stroke.

@@ -389,6 +389,9 @@ pub const F_QUANT: u32 = 32768;
 pub const F_ADD_DIFF: u32 = 16384;
 /// Blend / Atop / FxMerge of a type layer: coverage mixed at `psblend::TEXT_GAMMA`.
 pub const F_TEXT_GAMMA: u32 = 8192;
+/// Effect paint: the paint takes the place of the layer where it lies instead of being mixed
+/// over it (`effects::stroke_replace`: an inside stroke below 100 % opacity).
+pub const F_REPLACE: u32 = 524288;
 
 /// `F_TEXT_GAMMA` for type layers while text gamma blending is on; the gamma goes in `p4.w`.
 fn gamma_flag(layer: &Layer) -> u32 {
@@ -1152,7 +1155,7 @@ impl<'a> Planner<'a> {
                         &paint,
                         st.common.blend,
                         st.common.opacity,
-                        F_GATE,
+                        F_GATE | if photocraft_compose::effects::stroke_replaces(st) { F_REPLACE } else { 0 },
                         clip,
                         photocraft_compose::stroke_frame(self.cx.doc, layer, st).unwrap_or(sb),
                     );

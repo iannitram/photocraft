@@ -247,3 +247,83 @@ fn hairline_vector_stroke_keeps_the_files_edge_pixel_colour() {
         assert!(close4(px(&d, 20, 20), [fill, fill, fill, 1.0]), "{sample:?} {:?}", px(&d, 20, 20));
     }
 }
+
+/// An opaque blue square over `x0..30`, as pixels, with one stroke effect.
+fn stroked_pixels(d: &mut Document, common: FxCommon, position: StrokePosition) {
+    let mut l = Layer::raster("sq", PixelFormat::RGBA8);
+    l.surface_mut().unwrap().fill_rect(Rect::new(10, 10, 30, 30), &[0.0, 0.0, 1.0, 1.0]);
+    l.effects.items = vec![Effect::Stroke(StrokeFx { common, size: 1.0, position, paint: FxPaint::Color(Color::BLACK) })];
+    d.layers.push(l);
+}
+
+#[test]
+fn stroke_below_full_opacity_shows_the_backdrop_not_the_fill() {
+    // Photoshop's stroke takes the place of the layer where it lies. Measured in Photoshop's own
+    // composite of real files (CC 2014, CC 2019): opaque white type with a 1 px Inside stroke of
+    // black at 25 % shows the backdrop at 75 % along its edge (a red 234 becomes 184, where
+    // painting the stroke over the white fill gives 191 grey on every backdrop).
+    let mut d = doc(40, 40);
+    stroked_pixels(&mut d, FxCommon::new(BlendMode::Normal, 0.25), StrokePosition::Inside);
+    assert!(close4(px(&d, 10, 20), [0.75, 0.75, 0.75, 1.0]), "edge over white: {:?}", px(&d, 10, 20));
+    assert!(close4(px(&d, 20, 29), [0.75, 0.75, 0.75, 1.0]), "bottom edge: {:?}", px(&d, 20, 29));
+    assert!(close4(px(&d, 11, 20), [0.0, 0.0, 1.0, 1.0]), "the fill inside the band: {:?}", px(&d, 11, 20));
+    assert!(close4(px(&d, 9, 20), [1.0, 1.0, 1.0, 1.0]), "nothing outside: {:?}", px(&d, 9, 20));
+
+    // Over nothing, the band is the stroke alone at its opacity.
+    let mut d = Document::new("t", Size::new(40, 40), ColorMode::Rgb, SampleType::U8);
+    d.layers.clear();
+    stroked_pixels(&mut d, FxCommon::new(BlendMode::Normal, 0.25), StrokePosition::Inside);
+    assert!(close4(px(&d, 10, 20), [0.0, 0.0, 0.0, 0.25]), "{:?}", px(&d, 10, 20));
+    assert!(close4(px(&d, 11, 20), [0.0, 0.0, 1.0, 1.0]), "{:?}", px(&d, 11, 20));
+
+    // The inside half of a Center stroke is replaced the same way.
+    let mut d = doc(40, 40);
+    let mut l = Layer::raster("sq", PixelFormat::RGBA8);
+    l.surface_mut().unwrap().fill_rect(Rect::new(10, 10, 30, 30), &[0.0, 0.0, 1.0, 1.0]);
+    l.effects.items = vec![Effect::Stroke(StrokeFx {
+        common: FxCommon::new(BlendMode::Normal, 0.5),
+        size: 2.0,
+        position: StrokePosition::Center,
+        paint: FxPaint::Color(Color::BLACK),
+    })];
+    d.layers.push(l);
+    assert!(close4(px(&d, 10, 20), [0.5, 0.5, 0.5, 1.0]), "centre stroke, inside half: {:?}", px(&d, 10, 20));
+    assert!(close4(px(&d, 9, 20), [0.5, 0.5, 0.5, 1.0]), "centre stroke, outside half: {:?}", px(&d, 9, 20));
+}
+
+#[test]
+fn stroke_replacement_leaves_full_opacity_and_other_modes_alone() {
+    // 100 %: the band is the stroke either way.
+    let mut d = doc(40, 40);
+    stroked_pixels(&mut d, FxCommon::new(BlendMode::Normal, 1.0), StrokePosition::Inside);
+    assert!(close4(px(&d, 10, 20), [0.0, 0.0, 0.0, 1.0]), "{:?}", px(&d, 10, 20));
+    // Other blend modes are still painted over the fill (not measured in Photoshop yet).
+    let mut d = doc(40, 40);
+    stroked_pixels(&mut d, FxCommon::new(BlendMode::Multiply, 0.5), StrokePosition::Inside);
+    assert!(close4(px(&d, 10, 20), [0.0, 0.0, 0.5, 1.0]), "{:?}", px(&d, 10, 20));
+    assert!(effects::stroke_replaces(&StrokeFx { common: FxCommon::new(BlendMode::Normal, 0.99), size: 1.0, position: StrokePosition::Inside, paint: blue() }));
+    assert!(!effects::stroke_replaces(&StrokeFx { common: FxCommon::new(BlendMode::Normal, 1.0), size: 1.0, position: StrokePosition::Inside, paint: blue() }));
+    assert!(!effects::stroke_replaces(&StrokeFx {
+        common: FxCommon::new(BlendMode::Multiply, 0.5),
+        size: 1.0,
+        position: StrokePosition::Inside,
+        paint: blue()
+    }));
+}
+
+#[test]
+fn stroke_replace_mixes_the_band_and_the_rest_of_the_pixel() {
+    let (white, black) = ([1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 1.0]);
+    // The whole pixel in the band: the stroke at its opacity.
+    assert!(close4(effects::stroke_replace(white, black, 1.0, 0.25), [0.0, 0.0, 0.0, 0.25]));
+    // Half of it: half the layer, plus the stroke's eighth.
+    let p = effects::stroke_replace(white, black, 0.5, 0.25);
+    assert!((p[3] - 0.625).abs() < 1e-6 && (p[0] - 0.8).abs() < 1e-6, "{p:?}");
+    // Not in the band, or a see-through layer under a see-through stroke: no NaN, no change.
+    assert_eq!(effects::stroke_replace(white, black, 0.0, 0.25), white);
+    assert_eq!(effects::stroke_replace([0.2, 0.4, 0.6, 0.0], black, 1.0, 0.0), [0.2, 0.4, 0.6, 0.0]);
+    // A stroke at 100 % of an opaque ink equals painting it over the layer.
+    assert!(close4(effects::stroke_replace(white, black, 0.5, 1.0), [0.5, 0.5, 0.5, 1.0]));
+    // Out-of-range input is clamped.
+    assert!(close4(effects::stroke_replace(white, black, 7.0, 3.0), [0.0, 0.0, 0.0, 1.0]));
+}
