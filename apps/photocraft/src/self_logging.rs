@@ -26,6 +26,18 @@ const PREVIOUS_LOG_FILE: &str = "photocraft.1.log";
 const END_MARK: &str = "run ended:";
 /// Environment switches PhotoCraft reads besides craft-log's own.
 const SWITCH_PREFIXES: &[&str] = &["PHOTOCRAFT_", "WGPU_"];
+/// Environment switches whose value is a secret (the control channel's token): the report names
+/// them and never shows them. The same list as the command-line program's (`selflog.rs`).
+const SECRET_SWITCHES: &[&str] = &["PHOTOCRAFT_CONTROL_TOKEN"];
+
+/// The switches the report shows: [`craft_log::report::switches`], with the value of a secret
+/// one replaced by a note that it is set.
+fn shown_switches(vars: &[(String, String)]) -> Vec<(String, String)> {
+    craft_log::report::switches(vars, SWITCH_PREFIXES)
+        .into_iter()
+        .map(|(name, value)| if SECRET_SWITCHES.contains(&name.as_str()) { (name, "set (***)".to_owned()) } else { (name, mask_home(&value)) })
+        .collect()
+}
 
 static TURNED: Mutex<Vec<[u32; 2]>> = Mutex::new(Vec::new());
 
@@ -85,7 +97,14 @@ pub fn start_report(settings: Option<&Path>, window_session: &str) {
     r.add("screens", "screens and window", "known when the window opens: the \"screen\" and \"window:\" lines after this report");
     r.add("folders", "settings", show(settings));
     r.add("folders", "preferences", show(settings.map(|d| d.join("preferences.json")).as_deref()));
-    r.add_switches(SWITCH_PREFIXES);
+    let vars: Vec<(String, String)> = std::env::vars_os().filter_map(|(k, v)| Some((k.into_string().ok()?, v.to_string_lossy().into_owned()))).collect();
+    let switches = shown_switches(&vars);
+    if switches.is_empty() {
+        r.add("switches", "environment", "none");
+    }
+    for (name, value) in switches {
+        r.add("switches", &name, value);
+    }
     let logs = settings.map(|d| d.join("logs"));
     let previous = logs.as_ref().map(|d| d.join(PREVIOUS_LOG_FILE)).filter(|p| p.is_file());
     r.add(
@@ -212,4 +231,20 @@ pub fn window_ready(cc: &eframe::CreationContext<'_>, on_wayland: bool) {
 pub fn run_ended(in_order: bool) {
     log::info!("{END_MARK} {}", if in_order { "in order" } else { "with an error from the window system" });
     log::logger().flush();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_control_token_switch_is_named_and_not_shown() {
+        let vars: Vec<(String, String)> =
+            [("PHOTOCRAFT_CONTROL_TOKEN", "0123456789abcdef"), ("PHOTOCRAFT_CONTROL_TOKEN_FILE", "/tmp/token"), ("WGPU_BACKEND", "vulkan"), ("PATH", "/bin")]
+                .iter()
+                .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+                .collect();
+        let shown: Vec<String> = shown_switches(&vars).into_iter().map(|(k, v)| format!("{k}={v}")).collect();
+        assert_eq!(shown, ["PHOTOCRAFT_CONTROL_TOKEN=set (***)", "PHOTOCRAFT_CONTROL_TOKEN_FILE=/tmp/token", "WGPU_BACKEND=vulkan"]);
+    }
 }
