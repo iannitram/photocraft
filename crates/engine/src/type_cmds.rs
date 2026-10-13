@@ -464,6 +464,8 @@ pub fn refresh(doc: &Document, t: &mut TextLayer) {
     let (layout, r) = eng.render(t, dpi, doc.pixel_format());
     t.cache = Some(r.surface);
     t.psd_raw = Some(Arc::new(photocraft_text::psd::build_tysh(t, dpi, layout.bounds())));
+    // Our own pixels now, not the ones Photoshop carried along for a missing font.
+    t.clear_substitutes_used();
 }
 
 /// Runs `f` on a type layer as one undo step. `f` may set an explicit layer name (`type.edit`'s
@@ -1112,6 +1114,34 @@ mod tests {
         // The only history step is still the creation.
         assert!(s.undo());
         assert!(s.active().unwrap().doc.layer(id).is_none());
+    }
+
+    /// Photoshop marks a type layer it could not render (a missing font) `substitutesUsed` and
+    /// mixes its pixels without the text gamma; once we render the text ourselves it is live
+    /// type again.
+    #[test]
+    fn editing_type_saved_with_substituted_fonts_makes_it_live_again() {
+        use photocraft_psd::descriptor::Value as D;
+        let mut s = session();
+        let id = LayerId(s.execute("type.create", json!({"text": "Hello", "size": 24})).unwrap()["layer"].as_u64().unwrap());
+        {
+            let st = s.active_mut().unwrap();
+            let Some(Layer { content: LayerContent::Text(t), .. }) = Arc::make_mut(&mut st.doc).layer_mut(id) else { panic!("not a type layer") };
+            let mut tysh = photocraft_text::psd::parse_tysh(t.psd_raw.as_ref().unwrap()).unwrap();
+            tysh.text = tysh.text.with("substitutesUsed", D::Boolean(true));
+            t.psd_raw = Some(Arc::new(photocraft_text::psd::write_tysh(&tysh)));
+        }
+        assert!(text_layer(&s, id.0).substitutes_used());
+        let layer = |s: &Session| s.active().unwrap().doc.layer(id).unwrap().clone();
+        assert_eq!(photocraft_compose::text_gamma(&layer(&s)), 1.0);
+        // An edit renders the text again.
+        s.execute("type.edit", json!({"layer": id.0, "text": "Hello!"})).unwrap();
+        let t = text_layer(&s, id.0);
+        assert!(!t.substitutes_used());
+        assert_eq!(photocraft_compose::text_gamma(&layer(&s)), photocraft_compose::psblend::text_gamma());
+        // The flag is written as off, not dropped: the rest of the descriptor is Photoshop's.
+        let back = photocraft_text::psd::parse_tysh(t.psd_raw.as_ref().unwrap()).unwrap();
+        assert!(matches!(back.text.get("substitutesUsed"), Some(D::Boolean(false))));
     }
 
     #[test]

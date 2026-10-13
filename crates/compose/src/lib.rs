@@ -1358,9 +1358,14 @@ fn composite_layer_effects(layer: &Layer, clipped: &[Layer], backdrop: &mut Buff
 }
 
 /// The coverage-mixing gamma of a layer: the text blending gamma
-/// ([`psblend::set_text_gamma`], Photoshop's default 1.45) for type layers, else 1.
+/// ([`psblend::set_text_gamma`], Photoshop's default 1.45) for type layers, else 1. A type layer
+/// Photoshop saved with substituted fonts ([`photocraft_doc::TextLayer::substitutes_used`]) is
+/// plain pixels to Photoshop, which mixes them without the gamma, so it gets 1 too.
 pub fn text_gamma(layer: &Layer) -> f32 {
-    if matches!(layer.content, LayerContent::Text(_)) { psblend::text_gamma() } else { 1.0 }
+    match &layer.content {
+        LayerContent::Text(t) if !t.substitutes_used() => psblend::text_gamma(),
+        _ => 1.0,
+    }
 }
 
 /// A stroked shape layer with visible clipped layers: Photoshop draws the shape's vector stroke
