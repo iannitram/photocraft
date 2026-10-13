@@ -72,11 +72,14 @@ pub struct SubjectTuning {
     pub shoulder: f32,
     /// How far the hair reaches beyond the first selection, in widths of the face.
     pub hair: f32,
+    /// Hang the shoulders' band under the largest connected part of the first selection only,
+    /// not under every part (a lit patch of background beside the face is a part too).
+    pub band_under_largest: bool,
 }
 
 impl SubjectTuning {
     /// What [`select_subject`] does.
-    pub const SHIPPED: Self = Self { bg_sides: NOT_BOTTOM, portrait: Portrait::Probable, skin_gate: 0.3, shoulder: 1.0, hair: 0.0 };
+    pub const SHIPPED: Self = Self { bg_sides: NOT_BOTTOM, portrait: Portrait::Probable, skin_gate: 0.3, shoulder: 1.0, hair: 0.0, band_under_largest: false };
 }
 
 impl Default for SubjectTuning {
@@ -173,7 +176,15 @@ fn portrait_trimap(img: &super::RgbImage, sal: &[f32], t: f32, low: &[bool], tun
     if area == 0 || (skin as f32) < tune.skin_gate * area as f32 {
         return None;
     }
-    let widest = (0..h).map(|y| low[y * w..(y + 1) * w].iter().filter(|v| **v).count()).max().unwrap_or(0) as f32;
+    // The part of the first selection the band hangs under, and whose widest row is the face's width.
+    let seed: Vec<bool> = if tune.band_under_largest {
+        let (lab, sizes) = super::components(low, w, h);
+        let big = (1..sizes.len()).max_by_key(|l| sizes[*l]).unwrap_or(0) as u32;
+        lab.iter().map(|l| big != 0 && *l == big).collect()
+    } else {
+        low.to_vec()
+    };
+    let widest = (0..h).map(|y| seed[y * w..(y + 1) * w].iter().filter(|v| **v).count()).max().unwrap_or(0) as f32;
     let (reach_hair, reach_body) = (tune.hair * widest, tune.shoulder * widest);
     const FAR: f32 = 1.0e9;
     const DIAG: f32 = std::f32::consts::SQRT_2;
@@ -217,12 +228,12 @@ fn portrait_trimap(img: &super::RgbImage, sal: &[f32], t: f32, low: &[bool], tun
             dist[i] = d;
         }
     }
-    // Sideways steps from the first selection on the way down: 0 straight below it.
+    // Sideways steps from that part of the first selection on the way down: 0 straight below it.
     let mut side = vec![FAR; w * h];
     for y in 0..h {
         for x in 0..w {
             let i = y * w + x;
-            if low[i] {
+            if seed[i] {
                 side[i] = 0.0;
             } else if y > 0 {
                 let up = i - w;
