@@ -372,3 +372,42 @@ fn drop_shadow_stays_out_of_a_see_through_stroke_band() {
     // A stroke at 100 % leaves nothing open either way.
     assert!(close4(make(true, 1.0), [0.0, 0.0, 0.0, 1.0]));
 }
+
+#[test]
+fn type_with_a_see_through_inside_stroke_mixes_without_the_text_gamma() {
+    // Photoshop mixes live type over its backdrop at the text blending gamma, but not where an
+    // Inside stroke below 100 % has taken the fill's place. Measured on Photoshop 27.11 (white
+    // 120 pt type on red, Inside stroke of black at 25 %, 1 px on one copy and 4 px on the other):
+    // every band pixel is the backdrop at 75 % (191 of 255; the gamma mix gives 212), and on the
+    // last pixel of the band the fill's share is the edge pixel's own coverage (0.88 and 0.56 on
+    // the two sides of a stem; the gamma mix gives 0.91 and 0.65).
+    let make = |text: bool, opacity: f32, x: i32| {
+        let mut d = doc(40, 40);
+        let mut glyph = Layer::raster("g", PixelFormat::RGBA8);
+        glyph.surface_mut().unwrap().fill_rect(Rect::new(10, 10, 30, 30), &[0.0, 0.0, 1.0, 1.0]);
+        // The left edge column is half covered, as an anti-aliased glyph edge is.
+        glyph.surface_mut().unwrap().fill_rect(Rect::new(10, 10, 11, 30), &[0.0, 0.0, 1.0, 0.5]);
+        let mut l = if text {
+            Layer::new("t", LayerContent::Text(photocraft_doc::TextLayer { cache: glyph.surface().cloned(), ..Default::default() }))
+        } else {
+            glyph
+        };
+        l.effects.items = vec![Effect::Stroke(StrokeFx {
+            common: FxCommon::new(BlendMode::Normal, opacity),
+            size: 4.0,
+            position: StrokePosition::Inside,
+            paint: FxPaint::Color(Color::BLACK),
+        })];
+        d.layers.push(l);
+        px(&d, x, 20)
+    };
+    // Deep in the band (x = 12): black at 25 % over white, the plain mix.
+    assert!(close4(make(true, 0.25, 12), [0.75, 0.75, 0.75, 1.0]), "band: {:?}", make(true, 0.25, 12));
+    // On every pixel across the edge and the band the type layer is mixed like plain pixels.
+    for x in 9..17 {
+        assert!(close4(make(true, 0.25, x), make(false, 0.25, x)), "x = {x}: {:?} vs {:?}", make(true, 0.25, x), make(false, 0.25, x));
+    }
+    // A stroke at 100 % replaces nothing and leaves the type its gamma: the half-covered edge
+    // pixel, black over white, is lighter than the plain mix (0.5).
+    assert!(make(true, 1.0, 10)[1] > make(false, 1.0, 10)[1] + 0.05, "{:?} vs {:?}", make(true, 1.0, 10), make(false, 1.0, 10));
+}
