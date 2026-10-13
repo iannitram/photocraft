@@ -222,6 +222,15 @@ fn warn_all(err: &mut dyn Write, ws: &[String]) {
     }
 }
 
+/// [`warn_all`] for the warnings `printed` does not hold yet, which it then remembers.
+fn warn_once(err: &mut dyn Write, printed: &mut std::collections::HashSet<String>, ws: &[String]) {
+    for w in ws {
+        if printed.insert(w.clone()) {
+            let _ = writeln!(err, "warning: {w}");
+        }
+    }
+}
+
 /// The engine knows which type families aren't installed. Warn before an export
 /// uses a fallback face rather than silently changing the appearance of the text.
 fn missing_font_warnings(fonts: Vec<String>) -> Vec<String> {
@@ -292,11 +301,14 @@ fn command_list(a: &Args) -> Result<Vec<(String, Value)>, String> {
 fn run_cmds(a: &Args, out: &mut dyn Write, err: &mut dyn Write) -> R {
     let opts = export_opts(a)?;
     let mut h = Headless::trusted_local();
+    // The open, each command and the save all name the document's missing fonts: every warning
+    // is printed once per run.
+    let mut printed = std::collections::HashSet::<String>::new();
     match (a.positional.as_slice(), a.get("--new")) {
         ([file], None) => {
             let o = h.open(Path::new(file)).map_err(|e| e.to_string())?;
             let ws: Vec<String> = serde_json::from_value(o["warnings"].clone()).unwrap_or_default();
-            warn_all(err, &ws);
+            warn_once(err, &mut printed, &ws);
         }
         ([], Some(new)) => {
             let p: Value = serde_json::from_str(new).map_err(|e| format!("bad --new JSON: {e}"))?;
@@ -322,7 +334,7 @@ fn run_cmds(a: &Args, out: &mut dyn Write, err: &mut dyn Write) -> R {
             .into_iter()
             .filter(|w| reported_fonts.insert(w.clone()))
             .collect();
-        warn_all(err, &new_warnings);
+        warn_once(err, &mut printed, &new_warnings);
         let mut result = json!({"command": id, "result": r});
         if !new_warnings.is_empty() {
             result["warnings"] = json!(new_warnings);
@@ -338,11 +350,11 @@ fn run_cmds(a: &Args, out: &mut dyn Write, err: &mut dyn Write) -> R {
         .into_iter()
         .filter(|w| reported_fonts.insert(w.clone()))
         .collect();
-    warn_all(err, &remaining);
+    warn_once(err, &mut printed, &remaining);
     if let Some(o) = a.get("--out") {
         let r = h.save(None, Some(Path::new(o)), a.get("--format"), &opts).map_err(|e| e.to_string())?;
         let ws: Vec<String> = serde_json::from_value(r["warnings"].clone()).unwrap_or_default();
-        warn_all(err, &ws);
+        warn_once(err, &mut printed, &ws);
     }
     Ok(())
 }
