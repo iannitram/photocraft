@@ -18,13 +18,14 @@
 //! 5. The bottom side of the picture is not read as background, in the boundary connectivity of
 //!    step 2 or in the trimap of step 4: the subject of a still often leaves the frame through
 //!    it, while a floor or a table reaches a left or right side too.
-//! 6. When the selection so far reads as a face (skin tone in three tenths of it or more), a
-//!    second GrabCut is offered what lies below it, spreading at 45° to at most one face-width
+//! 6. Off unless asked for ([`Portrait`], through [`select_subject_tuned`]): when the selection
+//!    so far reads as a face (skin tone in three tenths of it or more), a second GrabCut is
+//!    offered what lies below it, spreading at 45° to at most one face-width
 //!    on each side, as probable foreground: a head-and-shoulders still is the person, and
 //!    clothes share no colour with a face. The cut still decides by colour.
 //!
-//! Works well for a distinct object on a comparatively plain background, and for one person
-//! from the chest up; it is not a semantic segmenter.
+//! Works well for a distinct object on a comparatively plain background; it is not a semantic
+//! segmenter.
 
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -76,7 +77,7 @@ pub struct SubjectTuning {
 
 impl SubjectTuning {
     /// What [`select_subject`] does.
-    pub const SHIPPED: Self = Self { bg_sides: NOT_BOTTOM, portrait: Portrait::Probable, skin_gate: 0.3, shoulder: 1.0, hair: 0.0 };
+    pub const SHIPPED: Self = Self { bg_sides: NOT_BOTTOM, portrait: Portrait::Off, skin_gate: 0.3, shoulder: 1.0, hair: 0.0 };
 }
 
 impl Default for SubjectTuning {
