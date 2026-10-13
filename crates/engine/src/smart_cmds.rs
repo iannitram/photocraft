@@ -808,15 +808,26 @@ fn set_source(s: &mut Session, p: &Value, label: &str, keep_psd: bool, make: imp
     let id = layer_param(s, p)?;
     let doc = &s.active().ok_or(EngineError::NoDocument)?.doc;
     let new = make(&doc.metadata, &smart(doc, id)?.source)?;
-    set_shared_source(s, id, label, keep_psd, new)
+    set_shared_source(s, id, label, keep_psd, new, None)
 }
 
 // Keep the shared-instance transaction out of the per-command source-builder instantiations.
-fn set_shared_source(s: &mut Session, id: LayerId, label: &str, keep_psd: bool, new: SmartSource) -> Result<Value> {
+// `refit` maps the new source's pixels onto the old source's frame (Replace Contents with `fit`):
+// each instance's placement is composed with it, so the new contents land where the old ones were.
+fn set_shared_source(s: &mut Session, id: LayerId, label: &str, keep_psd: bool, new: SmartSource, refit: Option<Homography>) -> Result<Value> {
     let (parent, contents_id) = s.edit(label, |doc, _| {
         let contents_id = smart(doc, id)?.contents_id;
         for instance in instances(doc, contents_id) {
-            smart_mut(doc, instance)?.source = new.clone();
+            let sm = smart_mut(doc, instance)?;
+            sm.source = new.clone();
+            if let Some(map) = &refit {
+                // A warp is a grid over the old source's pixels: it has no meaning on another size.
+                if sm.warp.is_some() {
+                    return Err(other("a warped smart object can't refit new contents: replace them without `fit`, or remove the warp first"));
+                }
+                let placed = placement(sm).mul(map);
+                set_placement(sm, placed);
+            }
             if !keep_psd {
                 detach_psd(doc.layer_mut(instance).ok_or(EngineError::NoLayer(instance))?);
             }
@@ -834,13 +845,87 @@ fn replace_contents(s: &mut Session, p: &Value) -> Result<Value> {
     let path = path_param("layer.smartObjects.replaceContents", p)?.to_string();
     let bytes = photocraft_format::read_file(std::path::Path::new(&path)).map_err(|e| other(format!("can't read {path}: {e}")))?;
     let id = layer_param(s, p)?;
-    replace_contents_bytes(s, id, &base_name(&path), bytes)
+    let fit = match p.get("fit") {
+        None | Some(Value::Null) => ReplaceFit::Keep,
+        Some(v) => match v.as_str() {
+            Some("keep") => ReplaceFit::Keep,
+            Some("cover") => ReplaceFit::Cover,
+            Some("contain") => ReplaceFit::Contain,
+            _ => return Err(bad("layer.smartObjects.replaceContents", format!("`fit` is \"keep\", \"cover\" or \"contain\", not {v}"))),
+        },
+    };
+    replace_contents_fit(s, id, &base_name(&path), bytes, fit)
+}
+
+/// What Replace Contents does with contents whose pixel size differs from the old ones'.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReplaceFit {
+    /// Photoshop's behaviour: every instance keeps its scale, so its size on the canvas changes.
+    Keep,
+    /// Scale the new contents, centred, until they cover the frame the old ones filled. What
+    /// overflows on one axis is left to the layer's mask or the canvas edge.
+    Cover,
+    /// Scale the new contents, centred, until they fit inside that frame.
+    Contain,
+}
+
+/// The map from the new contents' pixels onto the old contents' frame (`old` and `new`: pixel
+/// sizes), or `None` when there is nothing to change.
+fn refit_map(old: Size, new: Size, fit: ReplaceFit) -> Option<Homography> {
+    if fit == ReplaceFit::Keep || old == new || new.width == 0 || new.height == 0 {
+        return None;
+    }
+    let (ow, oh, nw, nh) = (f64::from(old.width), f64::from(old.height), f64::from(new.width), f64::from(new.height));
+    let k = if fit == ReplaceFit::Cover { (ow / nw).max(oh / nh) } else { (ow / nw).min(oh / nh) };
+    Some(Homography([k, 0.0, (ow - k * nw) / 2.0, 0.0, k, (oh - k * nh) / 2.0, 0.0, 0.0, 1.0]))
 }
 
 /// Replace Contents from a file's name and bytes: what the desktop and web file pickers hand over.
 pub fn replace_contents_bytes(s: &mut Session, id: LayerId, file_name: &str, bytes: Vec<u8>) -> Result<Value> {
-    decode_source(file_name, &bytes)?; // fail before touching the document
-    set_shared_source(s, id, "Replace Contents", false, SmartSource::Embedded { file_name: file_name.to_string(), bytes: Arc::new(bytes) })
+    replace_contents_fit(s, id, file_name, bytes, ReplaceFit::Keep)
+}
+
+/// [`replace_contents_bytes`] with a choice of what happens when the new contents have another
+/// pixel size. The result names both sizes and the layer's bounds before and after, and warns
+/// when the layer changed size on the canvas (the step where a template goes wrong quietly).
+pub fn replace_contents_fit(s: &mut Session, id: LayerId, file_name: &str, bytes: Vec<u8>, fit: ReplaceFit) -> Result<Value> {
+    let new_size = decode_source(file_name, &bytes)?.size; // fail before touching the document
+    let doc = &s.active().ok_or(EngineError::NoDocument)?.doc;
+    let old = smart(doc, id)?;
+    // Only contents held in memory are measured: a linked file is not read from disk for this.
+    let old_size = embedded_source_bytes(&doc.metadata, &old.source).and_then(|(name, bytes)| decode_source(&name, &bytes).ok()).map(|d| d.size);
+    let old_bounds = old.cache.as_ref().map(Surface::content_bounds);
+    let refit = match (fit, old_size) {
+        (ReplaceFit::Keep, _) => None,
+        (_, Some(old_size)) => refit_map(old_size, new_size, fit),
+        (_, None) => return Err(other("the old contents can't be read, so there is no frame to fit the new ones to: replace them without `fit`")),
+    };
+    let refitted = refit.is_some();
+    let source = SmartSource::Embedded { file_name: file_name.to_string(), bytes: Arc::new(bytes) };
+    let mut out = set_shared_source(s, id, "Replace Contents", false, source, refit)?;
+    let new_bounds = s.active().and_then(|st| smart(&st.doc, id).ok()).and_then(|sm| sm.cache.as_ref().map(Surface::content_bounds));
+    let rect = |r: Rect| json!([r.x0, r.y0, r.x1, r.y1]);
+    out["contentsSize"] = json!([new_size.width, new_size.height]);
+    if let Some(o) = old_size {
+        out["previousContentsSize"] = json!([o.width, o.height]);
+    }
+    if let Some(b) = new_bounds {
+        out["bounds"] = rect(b);
+    }
+    if let Some(b) = old_bounds {
+        out["previousBounds"] = rect(b);
+    }
+    if let (Some(o), false) = (old_size.filter(|o| *o != new_size), refitted) {
+        let covers = match (old_bounds, new_bounds) {
+            (Some(was), Some(now)) => format!(" and now covers {} x {} px on the canvas (was {} x {})", now.width(), now.height(), was.width(), was.height()),
+            _ => String::new(),
+        };
+        out["warnings"] = json!([format!(
+            "the new contents are {} x {} px, the old were {} x {} px: the layer keeps its scale{covers}",
+            new_size.width, new_size.height, o.width, o.height
+        )]);
+    }
+    Ok(out)
 }
 
 /// The file name and bytes of smart object `id`'s contents.
@@ -1131,7 +1216,14 @@ pub fn specs() -> Vec<CommandSpec> {
             let i = s.active_index().ok_or(EngineError::NoDocument)?;
             Ok(json!({"updated": commit_child(s, i)?}))
         }),
-        spec!("layer.smartObjects.replaceContents", "Replace Contents…", SO, r##"{"layer":id?,"path":str}"##, has_smart, replace_contents),
+        spec!(
+            "layer.smartObjects.replaceContents",
+            "Replace Contents…",
+            SO,
+            r##"{"layer":id?,"path":str,"fit":"keep"|"cover"|"contain"? (default "keep": the layer keeps its scale, as in Photoshop, so contents of another pixel size change its size on the canvas; "cover" and "contain" scale them to the frame the old contents filled)} → {"layer","contentsSize":[w,h],"previousContentsSize":[w,h]?,"bounds":[x0,y0,x1,y1]?,"previousBounds"?,"warnings":[str]? (the layer changed size)}"##,
+            has_smart,
+            replace_contents
+        ),
         spec!("layer.smartObjects.exportContents", "Export Contents…", SO, r##"{"layer":id?,"path":str}"##, has_smart, export_contents),
         spec!("layer.smartObjects.relinkToFile", "Relink to File…", SO, r##"{"layer":id?,"path":str}"##, has_smart, |s, p| {
             let path = path_param("layer.smartObjects.relinkToFile", p)?.to_string();

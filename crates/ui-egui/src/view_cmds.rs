@@ -1149,6 +1149,18 @@ fn front(app: &mut PhotocraftApp, id: &str, params: &Value) -> Option<Result<Val
             Some(app.pick_file_bytes(move |app, name, bytes| {
                 app.with_document(doc, |app| {
                     let r = photocraft_engine::smart_cmds::replace_contents_bytes(&mut app.session, layer, &name, bytes).map_err(|e| e.to_string());
+                    // Contents of another pixel size keep the layer's scale, as in Photoshop, so
+                    // the layer changes size on the canvas: say so rather than leave it to be found.
+                    let told: Vec<String> = r
+                        .as_ref()
+                        .ok()
+                        .and_then(|v| v.get("warnings").and_then(Value::as_array))
+                        .map(|ws| ws.iter().filter_map(|w| w.as_str().map(str::to_owned)).collect())
+                        .unwrap_or_default();
+                    if !told.is_empty() {
+                        let title = crate::i18n::tr(crate::i18n::current(), "Replace Contents…").trim_end_matches('…').to_owned();
+                        crate::notices::post(app, title, told, false, None);
+                    }
                     app.sync_views();
                     r
                 })

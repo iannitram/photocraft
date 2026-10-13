@@ -575,6 +575,42 @@ fn replace_contents_picks_a_file_for_every_instance() {
     assert!(matches!(smart_source(&app, ids[1]), photocraft_doc::SmartSource::Embedded { ref file_name, .. } if file_name == "art.png"));
 }
 
+/// Replace Contents with a file of another pixel size keeps the layer's scale, as in Photoshop,
+/// so the layer changes size on the canvas: the window says so in a notice.
+#[test]
+fn replace_contents_with_another_pixel_size_posts_a_notice() {
+    let (mut app, open, _, _) = smart_app();
+    let ctx = egui::Context::default();
+    let replace = |app: &mut PhotocraftApp, png: Vec<u8>| {
+        menus::invoke(app, &ctx, "layer.smartObjects.replaceContents", json!({})).unwrap();
+        app.poll_file_dialog(&ctx, None);
+        answer(&open, Some(FileDialogAnswer::Contents("art.png".into(), png)));
+        app.poll_file_dialog(&ctx, None);
+        assert!(!app.ui.status_error, "{}", app.ui.status);
+    };
+    let told = |app: &PhotocraftApp| app.ui.notices.iter().filter(|n| n.lines.iter().any(|l| l.contains("keeps its scale"))).count();
+    assert_eq!(told(&app), 0);
+    // The whole canvas as a PNG is the size of the contents it replaces: nothing to say.
+    let canvas = photocraft_io::export(&app.session.active().unwrap().doc, "png", &Default::default()).unwrap().bytes;
+    replace(&mut app, canvas);
+    assert_eq!(told(&app), 0);
+    // A PNG of another pixel size: the layer changes size on the canvas.
+    let other = photocraft_doc::Document::with_background(
+        "p",
+        photocraft_geom::Size::new(7, 5),
+        photocraft_color::ColorMode::Rgb,
+        photocraft_color::SampleType::U8,
+        photocraft_color::Color::rgba(1.0, 1.0, 0.0, 1.0),
+    );
+    let small = photocraft_io::export(&other, "png", &Default::default()).unwrap().bytes;
+    replace(&mut app, small.clone());
+    assert_eq!(told(&app), 1, "{:?}", app.ui.notices.iter().map(|n| (&n.title, &n.lines)).collect::<Vec<_>>());
+    assert!(app.ui.notices.iter().any(|n| n.title == "Replace Contents"), "titled after the command, without its ellipsis");
+    // The same size again: nothing new to say.
+    replace(&mut app, small);
+    assert_eq!(told(&app), 1);
+}
+
 #[test]
 fn export_contents_suggests_the_contents_file_name() {
     let (mut app, open, written, _) = smart_app();
