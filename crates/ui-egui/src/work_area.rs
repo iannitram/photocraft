@@ -58,14 +58,46 @@ fn trusted(content: Rect, usable: Rect) -> Rect {
     visible
 }
 
+fn turned_id() -> egui::Id {
+    egui::Id::new("pc-quarter-turned-modes")
+}
+
+/// Tell the work area which monitors the desktop shows turned a quarter (90° or 270°): the pixel
+/// size of each one's current mode, as the panel itself reports it (unturned). The desktop app
+/// asks the Wayland compositor at startup; nobody else needs to call this.
+pub fn set_quarter_turned_modes(ctx: &egui::Context, modes: Vec<[u32; 2]>) {
+    ctx.data_mut(|d| d.insert_temp(turned_id(), std::sync::Arc::new(modes)));
+}
+
+/// The monitor's size the way the desktop shows it. winit 0.30 reports a Wayland output by its
+/// mode, ignoring the output's transform: a portrait panel mounted sideways (1600 × 2560 px shown
+/// as 2560 × 1600, common in handhelds) arrives as 800 × 1280 pt at scale 2 although the desktop
+/// is 1280 × 800 pt. `reported` is that size in points, `pixels_per_point` what it was divided by,
+/// `turned_modes` the modes from [`set_quarter_turned_modes`]: a monitor whose size in pixels is
+/// one of them gets its width and height swapped. (Two monitors with the same mode, only one of
+/// them turned, can't be told apart: both are swapped.)
+pub fn oriented_monitor(reported: Vec2, pixels_per_point: f32, turned_modes: &[[u32; 2]]) -> Vec2 {
+    let px = reported * pixels_per_point;
+    let turned = turned_modes.iter().any(|&[w, h]| w != h && (px.x - w as f32).abs() <= 1.0 && (px.y - h as f32).abs() <= 1.0);
+    if turned { vec2(reported.y, reported.x) } else { reported }
+}
+
+/// [`oriented_monitor`] with this context's scale and the modes it was told about.
+fn oriented(ctx: &egui::Context, monitor: Vec2) -> Vec2 {
+    match ctx.data(|d| d.get_temp::<std::sync::Arc<Vec<[u32; 2]>>>(turned_id())) {
+        Some(turned) => oriented_monitor(monitor, ctx.pixels_per_point(), &turned),
+        None => monitor,
+    }
+}
+
 /// [`visible_part`] for this frame's viewport.
 pub fn visible_rect(ctx: &egui::Context) -> Rect {
     let content = ctx.content_rect();
-    ctx.input(|i| {
+    let (monitor, inner, fills) = ctx.input(|i| {
         let v = i.viewport();
-        let fills = v.maximized == Some(true) || v.fullscreen == Some(true);
-        visible_part(content, v.monitor_size, v.inner_rect, fills)
-    })
+        (v.monitor_size, v.inner_rect, v.maximized == Some(true) || v.fullscreen == Some(true))
+    });
+    visible_part(content, monitor.map(|m| oriented(ctx, m)), inner, fills)
 }
 
 /// Does a window of `outer` size fit on a `monitor` (less the taskbar)?
@@ -92,6 +124,8 @@ pub fn fit_window(ctx: &egui::Context) -> bool {
     // size is the least the window takes up.
     let outer = outer.unwrap_or(content);
     let Some(m) = monitor else { return false };
+    // A panel shown turned a quarter is reported unturned on Wayland: 800 × 900 "fits" 800 × 1280.
+    let m = oriented(ctx, m);
     // macOS keeps new windows inside the screen's visible frame itself.
     if cfg!(target_os = "macos") {
         return false;
@@ -126,9 +160,11 @@ pub fn fitted_window(wanted: Vec2, min: Vec2, monitor: Option<Vec2>) -> (Vec2, V
     (size, min.min(size))
 }
 
-/// The size of the monitor the main window is on: the one place [`fitted_builder`] gets it from.
+/// The size of the monitor the main window is on, the way the desktop shows it ([`oriented`]):
+/// the one place [`fitted_builder`] gets it from.
 fn monitor_of(ctx: &egui::Context) -> Option<Vec2> {
-    ctx.input_for(egui::ViewportId::ROOT, |i| i.viewport().monitor_size)
+    let reported = ctx.input_for(egui::ViewportId::ROOT, |i| i.viewport().monitor_size);
+    reported.map(|m| oriented(ctx, m))
 }
 
 /// `builder` with its size and minimum size fitted to the main window's monitor ([`fitted_window`]):
@@ -343,5 +379,98 @@ mod tests {
         // It is the main window's monitor that counts, also when asked from outside a frame.
         let b = fitted_builder(&ctx, camera_raw);
         assert_eq!(b.inner_size, Some(vec2(1024.0, 560.0)));
+    }
+
+    /// A handheld's portrait panel mounted sideways: 1600 × 2560 px, shown as 2560 × 1600 at
+    /// scale 2 (a 1280 × 800 pt desktop). winit reports the unturned 800 × 1280 pt.
+    const TURNED: [[u32; 2]; 1] = [[1600, 2560]];
+
+    #[test]
+    fn a_quarter_turned_panel_is_measured_the_way_it_is_shown() {
+        assert_eq!(oriented_monitor(vec2(800.0, 1280.0), 2.0, &TURNED), vec2(1280.0, 800.0));
+        // The same panel at another scale or UI zoom is still the same pixels.
+        assert_eq!(oriented_monitor(vec2(640.0, 1024.0), 2.5, &TURNED), vec2(1024.0, 640.0));
+        // A monitor that isn't turned, another monitor beside the turned one, a square one and no
+        // list at all keep their size.
+        assert_eq!(oriented_monitor(vec2(800.0, 1280.0), 2.0, &[]), vec2(800.0, 1280.0));
+        assert_eq!(oriented_monitor(MONITOR, 1.0, &TURNED), MONITOR);
+        assert_eq!(oriented_monitor(vec2(1280.0, 800.0), 2.0, &TURNED), vec2(1280.0, 800.0));
+        assert_eq!(oriented_monitor(vec2(500.0, 500.0), 2.0, &[[1000, 1000]]), vec2(500.0, 500.0));
+        // The window eframe opens there (1440 × 900 clamped to the unturned 800 pt width) "fits"
+        // the reported monitor but not the real one.
+        assert!(fits(vec2(800.0, 900.0), vec2(800.0, 1280.0)));
+        assert!(!fits(vec2(800.0, 900.0), oriented_monitor(vec2(800.0, 1280.0), 2.0, &TURNED)));
+    }
+
+    #[test]
+    fn a_window_too_tall_for_a_quarter_turned_panel_is_maximized() {
+        let run = |turned: bool| {
+            let ctx = egui::Context::default();
+            if turned {
+                set_quarter_turned_modes(&ctx, TURNED.to_vec());
+            }
+            let mut input = egui::RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 900.0))), ..Default::default() };
+            if let Some(v) = input.viewports.get_mut(&egui::ViewportId::ROOT) {
+                v.native_pixels_per_point = Some(2.0);
+                v.monitor_size = Some(vec2(800.0, 1280.0));
+                v.maximized = Some(false);
+            }
+            let mut out = ctx.run_ui(input, |ui| {
+                fit_window(ui.ctx());
+            });
+            out.textures_delta.clear();
+            let cmds = out.viewport_output.get(&egui::ViewportId::ROOT).map(|v| v.commands.clone()).unwrap_or_default();
+            cmds.contains(&egui::ViewportCommand::Maximized(true))
+        };
+        // Told the panel is turned, the 800 × 900 pt window doesn't fit the 1280 × 800 pt desktop.
+        assert_eq!(run(true), !cfg!(target_os = "macos"));
+        // Not told (X11, or an upright panel of that size), it fits and is left alone.
+        assert!(!run(false));
+    }
+
+    #[test]
+    fn menus_on_a_quarter_turned_panel_stop_at_its_real_bottom_edge() {
+        let ctx = egui::Context::default();
+        set_quarter_turned_modes(&ctx, TURNED.to_vec());
+        let mut input = egui::RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 900.0))), ..Default::default() };
+        if let Some(v) = input.viewports.get_mut(&egui::ViewportId::ROOT) {
+            v.native_pixels_per_point = Some(2.0);
+            v.monitor_size = Some(vec2(800.0, 1280.0));
+            v.maximized = Some(false);
+        }
+        let mut visible = Rect::NOTHING;
+        let mut out = ctx.run_ui(input, |ui| {
+            visible = visible_rect(ui.ctx());
+        });
+        out.textures_delta.clear();
+        // Wayland gives no window position: at best the content starts at the monitor's top.
+        assert_eq!(visible, Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 800.0 - TASKBAR)));
+    }
+
+    /// Camera Raw on that panel: fitted to the desktop as it is shown (1280 × 800 pt), not to the
+    /// unturned 800 × 1280 pt the window library reports, which leaves it 900 pt tall there.
+    #[test]
+    fn a_second_window_on_a_quarter_turned_panel_is_fitted_to_the_desktop_as_shown() {
+        let (wanted, least) = CAMERA_RAW;
+        let run = |turned: bool| {
+            let ctx = egui::Context::default();
+            if turned {
+                set_quarter_turned_modes(&ctx, TURNED.to_vec());
+            }
+            let camera_raw = egui::ViewportBuilder::default().with_inner_size(wanted).with_min_inner_size(least);
+            let mut input = egui::RawInput::default();
+            if let Some(v) = input.viewports.get_mut(&egui::ViewportId::ROOT) {
+                v.native_pixels_per_point = Some(2.0);
+                v.monitor_size = Some(vec2(800.0, 1280.0));
+            }
+            let mut result = camera_raw.clone();
+            let mut out = ctx.run_ui(input, |ui| {
+                result = fitted_builder(ui.ctx(), camera_raw.clone());
+            });
+            out.textures_delta.clear();
+            (result.inner_size, result.min_inner_size)
+        };
+        assert_eq!(run(true), (Some(vec2(1280.0, 800.0 - TASKBAR - TITLE_BAR)), Some(least)));
+        assert_eq!(run(false), (Some(vec2(800.0, 900.0)), Some(vec2(800.0, 600.0))));
     }
 }
