@@ -1007,3 +1007,82 @@ fn displace_smart_filter_reads_its_map_path_on_re_render() {
     }
     std::fs::remove_dir_all(&dir).ok();
 }
+
+/// Replace Contents with contents of another pixel size. By default every instance keeps its
+/// scale (as in Photoshop), so the layer changes size on the canvas, and the result says so.
+/// `fit` keeps the frame the old contents filled instead.
+#[test]
+fn replace_contents_reports_a_size_change_and_fit_keeps_the_frame() {
+    let dir = std::env::temp_dir().join(format!("pcraft-smart-refit-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let png = |name: &str, w: u32, h: u32, rgb: [f32; 3]| {
+        let doc = Document::with_background(
+            "p",
+            Size::new(w, h),
+            photocraft_color::ColorMode::Rgb,
+            photocraft_color::SampleType::U8,
+            photocraft_color::Color::rgba(rgb[0], rgb[1], rgb[2], 1.0),
+        );
+        let path = dir.join(name);
+        std::fs::write(&path, photocraft_io::export(&doc, "png", &Default::default()).unwrap().bytes).unwrap();
+        path.to_str().unwrap().to_string()
+    };
+    let wide = png("wide.png", 40, 20, [1.0, 0.0, 0.0]);
+    let same = png("same.png", 40, 20, [0.0, 0.0, 1.0]);
+    let square = png("square.png", 20, 20, [0.0, 1.0, 0.0]);
+    // A 40 x 20 photo placed at half size: it fills (10, 6)..(30, 16).
+    let placed = || {
+        let mut s = Session::new();
+        s.execute("file.new", json!({"width": 64, "height": 48, "depth": 8})).unwrap();
+        s.execute("file.placeEmbedded", json!({"path": wide, "scale": 50, "center": [20, 11], "smartObject": true})).unwrap();
+        s
+    };
+    let rect = |v: &Value| -> [i64; 4] { std::array::from_fn(|i| v[i].as_i64().unwrap()) };
+    let near = |got: [i64; 4], want: [i64; 4]| got.iter().zip(want).all(|(g, w)| (g - w).abs() <= 1);
+    const FRAME: [i64; 4] = [10, 6, 30, 16];
+
+    // Same pixel size: nothing to warn about, the frame stays.
+    let mut s = placed();
+    let r = s.execute("layer.smartObjects.replaceContents", json!({"path": same})).unwrap();
+    assert_eq!(r["contentsSize"], json!([40, 20]), "{r}");
+    assert_eq!(r["previousContentsSize"], json!([40, 20]), "{r}");
+    assert!(r.get("warnings").is_none(), "{r}");
+    assert!(near(rect(&r["bounds"]), FRAME) && near(rect(&r["previousBounds"]), FRAME), "{r}");
+
+    // Another size, no `fit`: the scale is kept (20 x 20 at 50 % = 10 x 10) and the result warns.
+    let mut s = placed();
+    let r = s.execute("layer.smartObjects.replaceContents", json!({"path": square})).unwrap();
+    assert_eq!(r["contentsSize"], json!([20, 20]), "{r}");
+    assert_eq!(r["previousContentsSize"], json!([40, 20]), "{r}");
+    assert!(near(rect(&r["previousBounds"]), FRAME), "{r}");
+    assert!(near(rect(&r["bounds"]), [10, 6, 20, 16]), "the scale is kept: {r}");
+    let w = r["warnings"][0].as_str().unwrap_or_else(|| panic!("a size change is reported: {r}"));
+    assert!(w.contains("20 x 20") && w.contains("40 x 20"), "{w}");
+    let keep = s.execute("layer.smartObjects.replaceContents", json!({"path": wide, "fit": "keep"})).unwrap();
+    assert!(keep["warnings"][0].is_string(), "\"keep\" is the default, spelled out: {keep}");
+
+    // "cover": scaled by 2 (the larger of 40/20 and 20/20) and centred on the old frame, so it
+    // fills the frame's width and overflows its height by 5 px on each side.
+    let mut s = placed();
+    let r = s.execute("layer.smartObjects.replaceContents", json!({"path": square, "fit": "cover"})).unwrap();
+    assert!(r.get("warnings").is_none(), "{r}");
+    assert_eq!(rect(&r["bounds"]), [10, 1, 30, 21], "{r}");
+    let sm = active_smart(&s);
+    assert_eq!(sm.transform.m, [1.0, 0.0, 0.0, 1.0, 10.0, 1.0]);
+    assert_eq!(sm.cache.as_ref().unwrap().rgba(20, 11), [0.0, 1.0, 0.0, 1.0], "the new contents, in the old frame");
+
+    // "contain": scaled by 1 (the smaller ratio) and centred: 10 x 10 in the middle of the frame.
+    let mut s = placed();
+    let r = s.execute("layer.smartObjects.replaceContents", json!({"path": square, "fit": "contain"})).unwrap();
+    assert!(r.get("warnings").is_none(), "{r}");
+    assert!(near(rect(&r["bounds"]), [15, 6, 25, 16]), "{r}");
+
+    // Anything else is refused before the document is touched.
+    let mut s = placed();
+    let before = flat(&s);
+    for fit in [json!("stretch"), json!(true)] {
+        assert!(s.execute("layer.smartObjects.replaceContents", json!({"path": square, "fit": fit})).is_err());
+    }
+    assert_eq!(max_diff(&before, &flat(&s)), 0.0);
+    std::fs::remove_dir_all(&dir).ok();
+}
