@@ -557,13 +557,15 @@ fn bust_scene(w: usize, h: usize, seed: u64) -> (RgbImage, Vec<bool>) {
 
 /// A head-and-shoulders still: the subject is the person, not the face alone. The clothes share
 /// no colour with the face and touch the bottom edge across most of its width, so saliency and
-/// one cut take the face for the whole.
+/// one cut take the face for the whole; the second cut of [`subject::Portrait::Probable`] is what
+/// brings the shoulders, and it is off unless asked for.
 #[test]
 fn select_subject_takes_the_shoulders_with_the_face() {
     let (w, h) = (240usize, 180usize);
     let (img, truth) = bust_scene(w, h, 21);
     let s = ImageSampler { img: &img, origin: (0, 0) };
-    let reg = subject::select_subject(&s, Rect::new(0, 0, w as i32, h as i32)).unwrap();
+    let tune = subject::SubjectTuning { portrait: subject::Portrait::Probable, ..subject::SubjectTuning::SHIPPED };
+    let reg = subject::select_subject_tuned(&s, Rect::new(0, 0, w as i32, h as i32), &tune).unwrap();
     let v = iou(&reg, &truth, w, h);
     assert!(v > 0.85, "IoU {v}");
 }
