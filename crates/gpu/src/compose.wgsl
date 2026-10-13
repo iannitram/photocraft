@@ -924,7 +924,10 @@ fn fx_color(d: vec2<i32>) -> vec4<f32> {
 // before its interior effects); 3 A with its alpha × B's alpha (the shape's own alpha); 4 the
 // vector stroke C over A, relative to the shape B, at `opacity`; 5 A's colour with alpha
 // `opacity` × A's alpha relative to B's (the layer within a filled shape's outline); 6 the
-// outside-stroke coverage seed (0, A's alpha); 7 A with alpha joined with the effect shape (map).
+// outside-stroke coverage seed (0, A's alpha); 7 A with alpha joined with the effect shape (map);
+// 8 A with its alpha × what the layer lets exterior effects through: `opacity` or, inside the
+// shape, a replacing stroke's band (map; `p2.w` beyond it), whichever is larger
+// (effects::knock_out_exterior).
 @fragment
 fn fs_fxinit(in: VOut) -> @location(0) vec4<f32> {
     let p = local(in.pos);
@@ -946,6 +949,11 @@ fn fs_fxinit(in: VOut) -> @location(0) vec4<f32> {
         }
         case 6: { return vec4(0.0, c.a, 0.0, 0.0); }
         case 7: { return vec4(c.rgb, max(c.a, map_value(doc_px(p), 0.0))); }
+        case 8: {
+            var open = 0.0;
+            if (c.a > INSIDE_EPS) { open = clamp(map_value(doc_px(p), op.p2.w), 0.0, 1.0); }
+            return vec4(c.rgb, c.a * max(clamp(op.opacity, 0.0, 1.0), open));
+        }
         default: { return vec4(c.rgb, c.a * op.opacity); }
     }
 }
