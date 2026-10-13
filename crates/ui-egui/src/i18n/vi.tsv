@@ -3535,3 +3535,9 @@ curves	Smooth	Làm mượt
 	Remove after each stroke	Xóa sau mỗi nét vẽ
 	Apply the removal ({key})	Áp dụng việc xóa ({key})
 	Strokes to remove: {n} (Enter applies, Esc cancels)	Nét vẽ cần xóa: {n} (Enter áp dụng, Esc hủy)
+	Missing Fonts	Phông chữ bị thiếu
+	This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Văn bản này dùng phông chữ chưa được cài đặt: {fonts}. Khi chỉnh sửa, văn bản sẽ được vẽ lại bằng phông chữ thay thế. Tiếp tục?
+	Text was drawn in a substitute font	Văn bản đã được vẽ bằng phông chữ thay thế
+	Choose an installed font for the text, or undo to bring back the text as it was.	Hãy chọn một phông chữ đã cài đặt cho văn bản, hoặc hoàn tác để khôi phục văn bản như cũ.
+	Fonts used in this document are not installed	Phông chữ dùng trong tài liệu này chưa được cài đặt
+	Type layers look as they were saved until their text is edited.	Các lớp chữ hiển thị như khi được lưu cho đến khi văn bản của chúng được chỉnh sửa.

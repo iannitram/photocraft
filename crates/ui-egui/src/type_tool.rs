@@ -92,37 +92,74 @@ pub(crate) fn shows_own_layout(doc: &Document, t: &TextLayer) -> bool {
 /// Start editing an existing type layer. Like Photoshop, editing shows the text as the type
 /// engine lays it out, so a PSD layer is re-rendered first (inside the edit session's history
 /// step, so Cancel brings Photoshop's pixels back).
-fn begin_edit(app: &mut PhotocraftApp, id: LayerId, key: &str) -> Result<(), String> {
+///
+/// That re-render draws a family that isn't installed in a substitute face, so with `ask` set
+/// (`Some(where the click was)`) it asks first (`missing_font_prompt`) and returns the prompt's
+/// dialog id: the edit has not started. `None` starts the edit the prompt confirmed.
+fn begin_edit(app: &mut PhotocraftApp, id: LayerId, key: &str, ask: Option<Option<[f64; 2]>>) -> Result<Option<u64>, String> {
     let st = app.session.active().ok_or("no document open")?;
     let doc = st.doc.clone();
     if let Some(t) = text_layer(&doc, id)
         && !shows_own_layout(&doc, t)
     {
+        if let Some(at) = ask
+            && let Some(dialog) = crate::missing_font_prompt::intercept(app, id, t, at)
+        {
+            return Ok(Some(dialog));
+        }
         app.run("type.edit", json!({"layer": id.0, "coalesce": key}))?;
     }
-    Ok(())
+    Ok(None)
 }
 
 /// Edit the active type layer from its thumbnail, selecting all text like Photoshop. Reuse the
 /// current session when already editing it, so Cancel and undo still cover the whole edit.
-pub fn edit_active(app: &mut PhotocraftApp) -> Result<(), String> {
+/// Returns the dialog id when the missing-font prompt asks first (the edit starts on its OK).
+pub fn edit_active(app: &mut PhotocraftApp) -> Result<Option<u64>, String> {
     let st = app.session.active().ok_or("no document open")?;
     let id = st.active_layer.ok_or("no active layer")?;
     let n = text_layer(&st.doc, id).ok_or("active layer is not a type layer")?.text.chars().count();
     if app.ui.text_edit.as_ref().is_none_or(|ed| ed.layer != id.0) {
         commit(app);
         let key = session_key(app);
-        begin_edit(app, id, &key)?;
+        if let Some(dialog) = begin_edit(app, id, &key, Some(None))? {
+            return Ok(Some(dialog));
+        }
         app.ui.text_edit =
             Some(TextEdit { layer: id.0, caret: n, anchor: 0, session: key, created: false, mask: false, dragging: false, resize: None, preedit: None });
     } else if let Some(ed) = app.ui.text_edit.as_mut() {
         ed.anchor = 0;
         ed.caret = n;
     }
+    enter_type_tool(app, id);
+    Ok(None)
+}
+
+/// The Type tool that matches the layer's orientation, targeting its text (not a mask).
+fn enter_type_tool(app: &mut PhotocraftApp, id: LayerId) {
     let vertical = app.session.active().and_then(|st| text_layer(&st.doc, id)).is_some_and(|t| t.orientation == photocraft_doc::text::Orientation::Vertical);
     app.ui.tool = if vertical { crate::state::Tool::VerticalType } else { crate::state::Tool::Type };
     app.ui.mask_target = false;
     app.ui.vector_mask_target = false;
+}
+
+/// The missing-font prompt's OK: start the edit it held back, with the caret where the click
+/// was (`at`, a document point) or, from the layer's thumbnail, with all its text selected.
+pub(crate) fn edit_confirmed(app: &mut PhotocraftApp, id: LayerId, at: Option<[f64; 2]>) -> Result<(), String> {
+    commit(app);
+    app.session.select_layer(id).map_err(|e| e.to_string())?;
+    let n = text_layer(&app.session.active().ok_or("no document open")?.doc, id).ok_or("not a type layer")?.text.chars().count();
+    let key = session_key(app);
+    begin_edit(app, id, &key, None)?;
+    let (anchor, caret) = match at {
+        Some([x, y]) => {
+            let off = hit_offset(app, id, x, y);
+            (off, off)
+        }
+        None => (0, n),
+    };
+    app.ui.text_edit = Some(TextEdit { layer: id.0, caret, anchor, session: key, created: false, mask: false, dragging: false, resize: None, preedit: None });
+    enter_type_tool(app, id);
     Ok(())
 }
 
@@ -136,16 +173,16 @@ pub fn edit_at(app: &mut PhotocraftApp, x: f64, y: f64) -> bool {
         return false;
     }
     let key = session_key(app);
-    if begin_edit(app, id, &key).is_err() {
-        return false;
+    match begin_edit(app, id, &key, Some(Some([x, y]))) {
+        Ok(None) => {}
+        // The missing-font prompt has the double-click now.
+        Ok(Some(_)) => return true,
+        Err(_) => return false,
     }
     let off = hit_offset(app, id, x, y);
     app.ui.text_edit =
         Some(TextEdit { layer: id.0, caret: off, anchor: off, session: key, created: false, mask: false, dragging: false, resize: None, preedit: None });
-    let vertical = app.session.active().and_then(|st| text_layer(&st.doc, id)).is_some_and(|t| t.orientation == photocraft_doc::text::Orientation::Vertical);
-    app.ui.tool = if vertical { crate::state::Tool::VerticalType } else { crate::state::Tool::Type };
-    app.ui.mask_target = false;
-    app.ui.vector_mask_target = false;
+    enter_type_tool(app, id);
     true
 }
 
@@ -259,7 +296,8 @@ pub fn pointer_down(app: &mut PhotocraftApp, x: f64, y: f64, mods: egui::Modifie
     if let Some(id) = hit_layer(app, x, y) {
         let _ = app.session.select_layer(id);
         let key = session_key(app);
-        if begin_edit(app, id, &key).is_err() {
+        // An error, or the missing-font prompt asking first: the press is used up either way.
+        if !matches!(begin_edit(app, id, &key, Some(Some([x, y]))), Ok(None)) {
             return true;
         }
         let off = hit_offset(app, id, x, y);

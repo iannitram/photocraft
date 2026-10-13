@@ -2732,3 +2732,9 @@ curves	Smooth	Suavizar
 	Remove after each stroke	Eliminar después de cada trazo
 	Apply the removal ({key})	Aplicar la eliminación ({key})
 	Strokes to remove: {n} (Enter applies, Esc cancels)	Trazos por eliminar: {n} (Intro aplica, Esc cancela)
+	Missing Fonts	Fuentes que faltan
+	This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Este texto usa fuentes que no están instaladas: {fonts}. Al editarlo, el texto se volverá a dibujar con una fuente sustituta. ¿Continuar?
+	Text was drawn in a substitute font	El texto se dibujó con una fuente sustituta
+	Choose an installed font for the text, or undo to bring back the text as it was.	Elija una fuente instalada para el texto, o deshaga para recuperar el texto como estaba.
+	Fonts used in this document are not installed	Las fuentes usadas en este documento no están instaladas
+	Type layers look as they were saved until their text is edited.	Las capas de texto se ven como se guardaron hasta que se edita su texto.

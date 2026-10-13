@@ -2691,3 +2691,9 @@ curves	Smooth	Glätten
 	Remove after each stroke	Nach jedem Strich entfernen
 	Apply the removal ({key})	Entfernen anwenden ({key})
 	Strokes to remove: {n} (Enter applies, Esc cancels)	Striche zum Entfernen: {n} (Eingabe wendet an, Esc bricht ab)
+	Missing Fonts	Fehlende Schriften
+	This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Dieser Text verwendet Schriften, die nicht installiert sind: {fonts}. Beim Bearbeiten wird der Text in einer Ersatzschrift neu gezeichnet. Fortfahren?
+	Text was drawn in a substitute font	Text wurde in einer Ersatzschrift gezeichnet
+	Choose an installed font for the text, or undo to bring back the text as it was.	Wählen Sie eine installierte Schrift für den Text, oder machen Sie den Schritt rückgängig, um den Text wie zuvor wiederherzustellen.
+	Fonts used in this document are not installed	In diesem Dokument verwendete Schriften sind nicht installiert
+	Type layers look as they were saved until their text is edited.	Textebenen sehen wie gespeichert aus, bis ihr Text bearbeitet wird.

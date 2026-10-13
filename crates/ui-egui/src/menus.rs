@@ -433,7 +433,10 @@ pub(crate) fn invoke_unguarded(app: &mut PhotocraftApp, ctx: &egui::Context, id:
             app.run(id, p)
         }
         "type.editText" => {
-            crate::type_tool::edit_active(app)?;
+            // A font that isn't installed: the prompt asks before the text is redrawn.
+            if let Some(dialog) = crate::type_tool::edit_active(app)? {
+                return Ok(json!({"dialog": dialog}));
+            }
             if let Some(focus) = ctx.memory(|m| m.focused()) {
                 ctx.memory_mut(|m| m.surrender_focus(focus));
             }

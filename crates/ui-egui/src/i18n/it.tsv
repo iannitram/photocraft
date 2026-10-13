@@ -4015,3 +4015,9 @@ navigator	Zoom	Zoom
 	Remove after each stroke	Rimuovi dopo ogni tratto
 	Apply the removal ({key})	Applica la rimozione ({key})
 	Strokes to remove: {n} (Enter applies, Esc cancels)	Tratti da rimuovere: {n} (Invio applica, Esc annulla)
+	Missing Fonts	Font mancanti
+	This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Questo testo usa font non installati: {fonts}. Modificandolo, il testo verrà ridisegnato con un font sostitutivo. Continuare?
+	Text was drawn in a substitute font	Il testo è stato disegnato con un font sostitutivo
+	Choose an installed font for the text, or undo to bring back the text as it was.	Scegli un font installato per il testo, oppure annulla l’operazione per ripristinare il testo com’era.
+	Fonts used in this document are not installed	I font usati in questo documento non sono installati
+	Type layers look as they were saved until their text is edited.	I livelli di testo appaiono come sono stati salvati finché il loro testo non viene modificato.

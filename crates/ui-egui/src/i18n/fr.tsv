@@ -3052,3 +3052,9 @@ curves	Smooth	Lisser
 	Remove after each stroke	Supprimer après chaque trait
 	Apply the removal ({key})	Appliquer la suppression ({key})
 	Strokes to remove: {n} (Enter applies, Esc cancels)	Traits à supprimer : {n} (Entrée applique, Échap annule)
+	Missing Fonts	Polices manquantes
+	This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Ce texte utilise des polices qui ne sont pas installées : {fonts}. Sa modification redessinera le texte avec une police de substitution. Continuer ?
+	Text was drawn in a substitute font	Le texte a été dessiné avec une police de substitution
+	Choose an installed font for the text, or undo to bring back the text as it was.	Choisissez une police installée pour le texte, ou annulez l’opération pour retrouver le texte tel qu’il était.
+	Fonts used in this document are not installed	Des polices utilisées dans ce document ne sont pas installées
+	Type layers look as they were saved until their text is edited.	Les calques de texte s’affichent tels qu’ils ont été enregistrés tant que leur texte n’est pas modifié.

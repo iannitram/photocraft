@@ -1229,6 +1229,13 @@ pub struct UiState {
     /// Documents (ids) whose slow full refresh on the CPU compositor has had its notice.
     #[serde(default)]
     pub slow_refresh_noticed: Vec<u64>,
+    /// Documents (ids) opened since the last frame, waiting for their missing-font notice
+    /// (`missing_font_prompt`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub missing_font_pending: Vec<u64>,
+    /// (document id, lower-case family): missing fonts the user has been told were substituted.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub missing_font_noticed: Vec<(u64, String)>,
     /// Status bar info field, Home screen (see `chrome_ui`).
     #[serde(default)]
     pub chrome: crate::chrome_ui::ChromeState,
@@ -1314,6 +1321,8 @@ impl Default for UiState {
             gpu_fallback_notice: None,
             kys_offer: None,
             slow_refresh_noticed: Vec::new(),
+            missing_font_pending: Vec::new(),
+            missing_font_noticed: Vec::new(),
             chrome: Default::default(),
             camera_raw_scope: Default::default(),
             camera_raw_preview: Default::default(),

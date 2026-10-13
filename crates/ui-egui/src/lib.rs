@@ -118,6 +118,7 @@ pub mod mask_trash_prompt;
 pub mod menu_catalog;
 pub mod menu_nav;
 pub mod menus;
+pub mod missing_font_prompt;
 pub mod monitor_status;
 pub mod move_box;
 pub mod move_hover;
@@ -654,6 +655,8 @@ pub struct PhotocraftApp {
     pub(crate) pcrop: perspective_crop_ui::PerspectiveCrop,
     /// Type tool layout cache: ((doc, revision, layer), layout).
     pub(crate) type_layout: Option<((u64, u64, u64), std::sync::Arc<photocraft_text::TextLayout>)>,
+    /// Type layers whose font isn't installed: ((doc, revision, font generation), layer ids).
+    pub(crate) missing_font_layers: Option<((u64, u64, u64), Vec<u64>)>,
     /// Type tool: (layer, clicks in the current run) for word / line / paragraph / all selection.
     pub(crate) type_clicks: Option<(u64, u32)>,
     pub(crate) type_transform_preview: Option<type_transform::Preview>,
@@ -772,6 +775,7 @@ impl PhotocraftApp {
             channel_thumbs: None,
             channel_views: HashMap::new(),
             type_layout: None,
+            missing_font_layers: None,
             type_clicks: None,
             type_transform_preview: None,
             type_font_preview: None,
@@ -898,6 +902,9 @@ impl PhotocraftApp {
         let result = self.run_command(id, params);
         if gate.is_some() {
             self.session.authorize = None;
+        }
+        if let Ok(value) = &result {
+            missing_font_prompt::command_ran(self, id, value);
         }
         // An explicit channel target (⌘2, ⌘\, ⌘3…) decides what the Layers panel targets too:
         // ⌘2 after the mask was targeted goes back to the layer's pixels.
@@ -1146,6 +1153,7 @@ impl PhotocraftApp {
         } else {
             notices::io_warnings(self, &crate::i18n::fmt(tl!("Opened {name}"), &[("name", name)]), &warnings);
         }
+        missing_font_prompt::document_opened(self);
         // Script events bound to "Open Document".
         photocraft_engine::automate_cmds::document_opened(&mut self.session);
         self.sync_views();
@@ -1190,6 +1198,7 @@ impl PhotocraftApp {
         self.ui.status = crate::i18n::fmt(tl!("Opened {name}"), &[("name", name)]);
         self.ui.status_error = false;
         notices::io_warnings(self, &crate::i18n::fmt(tl!("Opened {name}"), &[("name", name)]), &warnings);
+        missing_font_prompt::document_opened(self);
         Ok(warnings)
     }
 
@@ -1720,6 +1729,7 @@ impl eframe::App for PhotocraftApp {
         camera_raw_ui::show(self, &ctx);
         wide_angle_ui::show(self, &ctx);
         canvas::extra_windows(self, &ctx);
+        missing_font_prompt::tick(self);
         notices::show(self, &ctx);
         gpu_status::show_fallback(self, &ctx);
         kys_import::show_offer(self, &ctx);
