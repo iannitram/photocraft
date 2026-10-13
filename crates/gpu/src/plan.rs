@@ -412,6 +412,9 @@ pub const INIT_RELATIVE: i32 = 5;
 pub const INIT_COVER: i32 = 6;
 /// A with its alpha joined with the effect shape (the map).
 pub const INIT_OUTLINE: i32 = 7;
+/// A with its alpha × what the layer lets exterior effects through: `opacity` (the fill's
+/// see-through share) or, inside the shape, a replacing stroke's band (the map), whichever is larger.
+pub const INIT_KNOCK: i32 = 8;
 
 /// `MapRef::item` of the layer's effect shape (`compose::layer_shape`) instead of an effect map.
 pub const SHAPE_MAP: usize = usize::MAX;
@@ -1061,14 +1064,38 @@ impl<'a> Planner<'a> {
         } else {
             self.retain(backdrop)
         };
+        // Where a stroke below 100 % has taken the fill's place its inside band is see-through
+        // however opaque the fill is, and the exterior effects are knocked out of all of it
+        // (compose::effects::knock_out_exterior). The widest such stroke's band holds every
+        // narrower one. `knock` is then the layer with its alpha × that see-through share, read by
+        // the paints below at strength 1.
+        let see_through = 1.0 - layer.fill_opacity.clamp(0.0, 1.0);
+        let band = rev
+            .iter()
+            .filter_map(|&(i, e)| if let Effect::Stroke(st) = e { Some((i, stroke_widths(st).0, st)) } else { None })
+            .filter(|(_, in_w, st)| *in_w > 0.0 && photocraft_compose::effects::stroke_replaces(st))
+            .max_by(|a, b| a.1.total_cmp(&b.1));
+        let knock = band.map(|(i, in_w, _)| {
+            let mut p = Pass::new(Kernel::FxInit, 0);
+            p.a = Some(self.retain(content));
+            p.adjust_kind = INIT_KNOCK;
+            p.opacity = see_through;
+            p.map = Some(map(i, 1));
+            p.params[2][3] = (in_w + 0.5).clamp(0.0, 1.0);
+            p.clip = Some(clip);
+            self.emit(p)
+        });
+        let (knock_src, knock_k) = match knock {
+            Some(k) => (k, 1.0),
+            None => (content, see_through),
+        };
         for &(i, e) in &rev {
             if let Effect::DropShadow(s) = e {
                 // The layer hides the shadow beneath it where its fill is see-through.
                 let flags = if s.knocks_out { F_KNOCKOUT } else { 0 };
-                let see_through = 1.0 - layer.fill_opacity.clamp(0.0, 1.0);
                 w = self.paint_k(
                     w,
-                    content,
+                    knock_src,
                     Cov::Map(map(i, 0), 0.0),
                     &Paint::Color(s.color.to_rgb()),
                     s.common.blend,
@@ -1076,7 +1103,7 @@ impl<'a> Planner<'a> {
                     flags,
                     clip,
                     sb,
-                    see_through,
+                    knock_k,
                 );
             }
         }
@@ -1085,9 +1112,11 @@ impl<'a> Planner<'a> {
                 let paint = self.glow_paint(g, anchor);
                 // Match CPU exterior knockout: a see-through fill must not reveal the
                 // glow through its own shape. The shader applies m × (1 − alpha × k).
-                let see_through = 1.0 - layer.fill_opacity.clamp(0.0, 1.0);
-                w = self.paint_k(w, content, Cov::Map(map(i, 0), 0.0), &paint, g.common.blend, g.common.opacity, F_KNOCKOUT, clip, sb, see_through);
+                w = self.paint_k(w, knock_src, Cov::Map(map(i, 0), 0.0), &paint, g.common.blend, g.common.opacity, F_KNOCKOUT, clip, sb, knock_k);
             }
+        }
+        if let Some(k) = knock {
+            self.release(k);
         }
 
         // The layer: its colour at fill opacity inside its shape; interior effects are painted
@@ -1811,6 +1840,68 @@ mod tests {
                 .expect("outer glow paint pass");
             assert!((glow.extra[3] - (1.0 - fill)).abs() < 1e-6, "fill {fill}");
         }
+    }
+
+    #[test]
+    fn exterior_effects_are_knocked_out_of_a_replacing_stroke_band() {
+        use photocraft_doc::{Contour, FxCommon, Shadow, StrokeFx};
+
+        // An opaque layer with a Drop Shadow that the layer knocks out and an Inside stroke.
+        // Below 100 % the stroke replaces the fill in its band (compose::effects::stroke_replace),
+        // so the band is see-through and the shadow must stay out of all of it: the shadow's paint
+        // then reads its knock-out from a pass that joins the layer's alpha with the band map.
+        let planned_for = |stroke_opacity: f32, widths: &[f32]| {
+            let mut d = Document::with_background("band", Size::new(64, 64), ColorMode::Rgb, SampleType::U8, Color::WHITE);
+            let mut layer = Layer::raster("sq", d.pixel_format());
+            layer.surface_mut().unwrap().fill_rect(Rect::new(16, 16, 48, 48), &[1.0, 1.0, 1.0, 1.0]);
+            layer.effects.items.push(Effect::DropShadow(Shadow {
+                common: FxCommon::new(BlendMode::Multiply, 0.35),
+                color: Color::rgb(0.0, 0.0, 1.0),
+                angle: 90.0,
+                use_global_light: false,
+                distance: 6.0,
+                spread: 0.0,
+                size: 6.0,
+                contour: Contour::Linear,
+                anti_alias: false,
+                noise: 0.0,
+                knocks_out: true,
+            }));
+            for w in widths {
+                layer.effects.items.push(Effect::Stroke(StrokeFx {
+                    common: FxCommon::new(BlendMode::Normal, stroke_opacity),
+                    size: *w,
+                    position: StrokePosition::Inside,
+                    paint: FxPaint::Color(Color::BLACK),
+                }));
+            }
+            d.layers.push(layer);
+            d
+        };
+        let shadow_pass = |p: &Plan<'_>| {
+            p.passes
+                .iter()
+                .find(|pass| pass.kernel == Kernel::FxPaint && pass.flags & F_KNOCKOUT != 0 && pass.color[2] > 0.9 && pass.color[0] < 0.1)
+                .map(|pass| (pass.b, pass.extra[3]))
+                .expect("drop shadow paint pass")
+        };
+        // A stroke at 25 %: one knock-out pass, fed by the stroke's inside map, and the shadow uses it at full strength.
+        let d = planned_for(0.25, &[1.0, 4.0]);
+        let p = plan(&d).unwrap();
+        let knocks: Vec<_> = p.passes.iter().filter(|pass| pass.kernel == Kernel::FxInit && pass.adjust_kind == 8).collect();
+        assert_eq!(knocks.len(), 1, "one knock-out pass for the layer");
+        // Effects are listed shadow, 1 px stroke, 4 px stroke: the widest band (item 2) holds the narrower one.
+        assert_eq!(knocks[0].map.map(|m| (m.item, m.map)), Some((2, 1)));
+        assert_eq!(knocks[0].opacity, 0.0, "the fill itself is opaque");
+        assert_eq!(knocks[0].params[2][3], 1.0, "beyond the map the band is whole, as on the CPU");
+        let (b, strength) = shadow_pass(&p);
+        assert_eq!(b, Some(knocks[0].dst));
+        assert_eq!(strength, 1.0);
+        // A stroke at 100 % replaces nothing: no extra pass, and the old strength (the fill's see-through share).
+        let d = planned_for(1.0, &[4.0]);
+        let p = plan(&d).unwrap();
+        assert!(!p.passes.iter().any(|pass| pass.kernel == Kernel::FxInit && pass.adjust_kind == 8));
+        assert_eq!(shadow_pass(&p).1, 0.0);
     }
 
     #[test]
