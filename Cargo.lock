@@ -4237,6 +4237,7 @@ dependencies = [
 name = "photocraft-algo"
 version = "0.8.0"
 dependencies = [
+ "log",
  "photocraft-color",
  "photocraft-geom",
  "photocraft-raster",
