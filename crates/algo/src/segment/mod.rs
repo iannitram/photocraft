@@ -252,7 +252,7 @@ pub fn grid_cut_cancellable(
     weight: impl Fn(f32) -> f32,
     cancel: &dyn Fn() -> bool,
 ) -> Option<Vec<bool>> {
-    grid_cut_impl::<true>(img, cost_fg, cost_bg, fixed, weight, cancel, Solver::Auto)
+    grid_cut_budgeted::<true>(img, cost_fg, cost_bg, fixed, weight, cancel)
 }
 
 /// [`grid_cut`] solved with Boykov–Kolmogorov whatever the graph's size. GrabCut's
@@ -281,7 +281,97 @@ mod edge_starts;
 
 // The const parameter also runs the previous full scan in before/after workflow tests.
 fn grid_cut_weighted<const OPTIMIZED: bool>(img: &RgbImage, cost_fg: &[f32], cost_bg: &[f32], fixed: &[u8], weight: impl Fn(f32) -> f32) -> Vec<bool> {
-    grid_cut_impl::<OPTIMIZED>(img, cost_fg, cost_bg, fixed, weight, &|| false, Solver::Auto).unwrap_or_default()
+    grid_cut_budgeted::<OPTIMIZED>(img, cost_fg, cost_bg, fixed, weight, &|| false).unwrap_or_default()
+}
+
+/// Solver asks (one per [`maxflow::CANCEL_EVERY`] max-flow steps) a cut may spend per free pixel
+/// before it is handed to Boykov–Kolmogorov: one ask, so 1024 steps, per free pixel.
+///
+/// Measured on the 32 edge-band tiles of one 1920 × 1080 Select Subject (2026-10-13): the 31
+/// cuts that finish take at most 12 steps per free pixel (73 asks for 9010 pixels; 50 for
+/// 4385), and 24 000 made-up band cuts of about 4 600 free pixels at most 22 (100 asks). The
+/// one that never finishes had passed 1 100 000 steps per free pixel when it was stopped. The
+/// budget is about fifty times what a finishing cut needs, and costs a stuck 4 160-pixel cut
+/// about 30 ms before Boykov–Kolmogorov redoes it in 2 ms.
+pub(crate) const BUDGET_ASKS_PER_FREE_PIXEL: usize = 1;
+/// The least budget, for cuts of a few pixels.
+pub(crate) const BUDGET_ASKS_MIN: usize = 256;
+
+/// A cut whose automatic solver ran out of its step budget and was redone by Boykov–Kolmogorov.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Handover {
+    /// Free pixels (graph nodes).
+    pub free: usize,
+    /// Max-flow steps spent before the hand-over.
+    pub steps: u64,
+}
+
+/// [`grid_cut_impl`] with the automatic solver choice kept on a step budget: when the budget
+/// runs out (push/relabel has been seen not to terminate on a rare graph), the cut is built
+/// again and solved by Boykov–Kolmogorov, which gives the same cut, and one `decision:` line is
+/// logged. `None` only when `cancel` stopped it. No picture can make a cut wait for ever.
+fn grid_cut_budgeted<const OPTIMIZED: bool>(
+    img: &RgbImage,
+    cost_fg: &[f32],
+    cost_bg: &[f32],
+    fixed: &[u8],
+    weight: impl Fn(f32) -> f32,
+    cancel: &dyn Fn() -> bool,
+) -> Option<Vec<bool>> {
+    let (cut, handover) = grid_cut_within::<OPTIMIZED>(img, cost_fg, cost_bg, fixed, weight, cancel, None);
+    if let Some(h) = handover {
+        log_handover(h, img, None);
+    }
+    cut
+}
+
+/// [`grid_cut_budgeted`] that reports the hand-over instead of logging it; `budget_asks`
+/// replaces the measured budget (tests).
+pub(crate) fn grid_cut_within<const OPTIMIZED: bool>(
+    img: &RgbImage,
+    cost_fg: &[f32],
+    cost_bg: &[f32],
+    fixed: &[u8],
+    weight: impl Fn(f32) -> f32,
+    cancel: &dyn Fn() -> bool,
+    budget_asks: Option<usize>,
+) -> (Option<Vec<bool>>, Option<Handover>) {
+    if !OPTIMIZED {
+        // The previous full scan always solves with Boykov–Kolmogorov.
+        return (grid_cut_impl::<false>(img, cost_fg, cost_bg, fixed, weight, cancel, Solver::Auto), None);
+    }
+    let free = fixed.iter().filter(|f| **f == FREE).count();
+    let budget = budget_asks.unwrap_or_else(|| free.saturating_mul(BUDGET_ASKS_PER_FREE_PIXEL).max(BUDGET_ASKS_MIN));
+    let asks = std::cell::Cell::new(0usize);
+    let spent = std::cell::Cell::new(false);
+    let limited = || {
+        if cancel() {
+            return true;
+        }
+        asks.set(asks.get().saturating_add(1));
+        if asks.get() > budget {
+            spent.set(true);
+        }
+        spent.get()
+    };
+    let cut = grid_cut_impl::<true>(img, cost_fg, cost_bg, fixed, &weight, &limited, Solver::Auto);
+    if cut.is_some() || !spent.get() {
+        return (cut, None);
+    }
+    let handover = Handover { free, steps: (asks.get() as u64).saturating_mul(u64::from(maxflow::CANCEL_EVERY)) };
+    (grid_cut_impl::<true>(img, cost_fg, cost_bg, fixed, &weight, cancel, Solver::Bk), Some(handover))
+}
+
+/// The one line a hand-over leaves in the log; `tile` is where the cut sits in the document.
+fn log_handover(h: Handover, img: &RgbImage, tile: Option<Rect>) {
+    let place = tile.map_or_else(String::new, |t| format!(", tile at {}, {} ({} × {})", t.x0, t.y0, t.width(), t.height()));
+    log::warn!(
+        "decision: segment.cut: the automatic max-flow had not finished after {} steps ({} free pixels in a {} × {} window{place}); cut again with Boykov–Kolmogorov",
+        h.steps,
+        h.free,
+        img.w,
+        img.h
+    );
 }
 
 fn grid_cut_impl<const OPTIMIZED: bool>(
@@ -733,8 +823,12 @@ fn refine_band(
             }
         }
         let beta = contrast_beta(&img);
-        // `grid_cut`'s weight, with the cut stopping on cancel.
-        let cut = grid_cut_cancellable(&img, &cfg, &cbg, &fixed, |d2| 50.0 * (-beta * d2).exp(), &cancel).ok_or(Cancelled)?;
+        // `grid_cut`'s weight, with the cut stopping on cancel (upstream's #4878) and a step budget.
+        let (cut, handover) = grid_cut_within::<true>(&img, &cfg, &cbg, &fixed, |d2| 50.0 * (-beta * d2).exp(), &cancel, None);
+        if let Some(h) = handover {
+            log_handover(h, &img, Some(*t));
+        }
+        let cut = cut.ok_or(Cancelled)?;
         let (cw, ch) = (t.width() as usize, t.height() as usize);
         let mut core = Vec::with_capacity(cw * ch);
         for yy in 0..ch {
@@ -806,3 +900,6 @@ mod tests;
 
 #[cfg(test)]
 mod workflow_tests;
+
+#[cfg(test)]
+mod budget_tests;
