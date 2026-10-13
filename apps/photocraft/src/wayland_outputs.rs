@@ -106,13 +106,15 @@ mod query {
 /// environment variable. Only on an ordinary Wayland desktop, where `WAYLAND_DISPLAY` names the
 /// compositor's socket and anyone may connect to it again. Not when `WAYLAND_SOCKET` is set: that
 /// is one connection, already open and handed to this process, which `connect_to_env` would take
-/// and the window library then could not have. And not under gamescope (Steam's Game Mode), which
-/// shows the one app full screen and is not a desktop to fit a window to.
+/// and the window library then could not have. And not under gamescope (Steam's Game Mode, known
+/// by `XDG_CURRENT_DESKTOP` or `GAMESCOPE_WAYLAND_DISPLAY`), which shows the one app full screen
+/// and is not a desktop to fit a window to.
 pub fn may_ask_compositor(var: impl Fn(&str) -> Option<String>) -> bool {
     let set = |name: &str| var(name).is_some_and(|v| !v.is_empty());
-    let gamescope = set("GAMESCOPE_WAYLAND_DISPLAY")
-        || set("SteamGamepadUI")
-        || var("XDG_CURRENT_DESKTOP").is_some_and(|d| d.split(':').any(|part| part.trim().eq_ignore_ascii_case("gamescope")));
+    // Not `SteamGamepadUI`: Steam also sets it for what it starts from Big Picture on an ordinary
+    // desktop, where the compositor is the desktop's own and is to be asked.
+    let gamescope =
+        set("GAMESCOPE_WAYLAND_DISPLAY") || var("XDG_CURRENT_DESKTOP").is_some_and(|d| d.split(':').any(|part| part.trim().eq_ignore_ascii_case("gamescope")));
     set("WAYLAND_DISPLAY") && !set("WAYLAND_SOCKET") && !gamescope
 }
 
@@ -163,11 +165,12 @@ mod tests {
         // A connection handed over by the parent is the window library's, never ours.
         assert!(!ask(&[("WAYLAND_DISPLAY", "wayland-0"), ("WAYLAND_SOCKET", "7")]));
         assert!(!ask(&[("WAYLAND_SOCKET", "7")]));
-        // gamescope, by any of its three signs.
+        // gamescope, by either of its signs.
         assert!(!ask(&[("WAYLAND_DISPLAY", "gamescope-0"), ("XDG_CURRENT_DESKTOP", "gamescope")]));
         assert!(!ask(&[("WAYLAND_DISPLAY", "wayland-0"), ("XDG_CURRENT_DESKTOP", "KDE:Gamescope")]));
         assert!(!ask(&[("WAYLAND_DISPLAY", "wayland-0"), ("GAMESCOPE_WAYLAND_DISPLAY", "gamescope-0")]));
-        assert!(!ask(&[("WAYLAND_DISPLAY", "wayland-0"), ("XDG_CURRENT_DESKTOP", "KDE"), ("SteamGamepadUI", "1")]));
+        // Started by Steam from Big Picture on an ordinary desktop: still a desktop to ask.
+        assert!(ask(&[("WAYLAND_DISPLAY", "wayland-0"), ("XDG_CURRENT_DESKTOP", "KDE"), ("SteamGamepadUI", "1")]));
     }
 
     #[test]
