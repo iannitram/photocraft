@@ -3039,3 +3039,9 @@ curves	Smooth	Haluskan
 	Remove after each stroke	Hapus setelah setiap goresan
 	Apply the removal ({key})	Terapkan penghapusan ({key})
 	Strokes to remove: {n} (Enter applies, Esc cancels)	Goresan untuk dihapus: {n} (Enter menerapkan, Esc membatalkan)
+	Missing Fonts	Font yang Hilang
+	This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Teks ini memakai font yang tidak terpasang: {fonts}. Mengeditnya akan menggambar ulang teks dengan font pengganti. Lanjutkan?
+	Text was drawn in a substitute font	Teks digambar dengan font pengganti
+	Choose an installed font for the text, or undo to bring back the text as it was.	Pilih font yang terpasang untuk teks ini, atau urungkan untuk mengembalikan teks seperti semula.
+	Fonts used in this document are not installed	Font yang dipakai dalam dokumen ini tidak terpasang
+	Type layers look as they were saved until their text is edited.	Lapisan teks tampil seperti saat disimpan sampai teksnya diedit.

@@ -3749,3 +3749,9 @@ curves	Smooth	Εξομάλυνση
 	Remove after each stroke	Αφαίρεση μετά από κάθε πινελιά
 	Apply the removal ({key})	Εφαρμογή της αφαίρεσης ({key})
 	Strokes to remove: {n} (Enter applies, Esc cancels)	Πινελιές προς αφαίρεση: {n} (Enter εφαρμόζει, Esc ακυρώνει)
+	Missing Fonts	Γραμματοσειρές που λείπουν
+	This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Αυτό το κείμενο χρησιμοποιεί γραμματοσειρές που δεν είναι εγκατεστημένες: {fonts}. Με την επεξεργασία, το κείμενο θα σχεδιαστεί ξανά με γραμματοσειρά αντικατάστασης. Συνέχεια;
+	Text was drawn in a substitute font	Το κείμενο σχεδιάστηκε με γραμματοσειρά αντικατάστασης
+	Choose an installed font for the text, or undo to bring back the text as it was.	Επιλέξτε μια εγκατεστημένη γραμματοσειρά για το κείμενο ή κάντε αναίρεση για να επαναφέρετε το κείμενο όπως ήταν.
+	Fonts used in this document are not installed	Γραμματοσειρές που χρησιμοποιούνται σε αυτό το έγγραφο δεν είναι εγκατεστημένες
+	Type layers look as they were saved until their text is edited.	Τα επίπεδα κειμένου εμφανίζονται όπως αποθηκεύτηκαν μέχρι να γίνει επεξεργασία του κειμένου τους.

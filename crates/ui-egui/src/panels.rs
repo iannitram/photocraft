@@ -2862,6 +2862,12 @@ fn draw_layer_thumb(app: &mut PhotocraftApp, ctx: &egui::Context, ui: &egui::Ui,
             // Photoshop: type layers show a "T" tile rather than a pixel thumbnail.
             p.rect_filled(rect, if t.pro { 0.0 } else { 6.0 }, Color32::from_gray(if t.pro { 222 } else { 236 }));
             icons::paint(ui, rect, "type", 20.0, Color32::from_gray(40));
+            // Photoshop: a caution mark on type whose font is missing (editing it substitutes one).
+            if crate::missing_font_prompt::layer_missing(app, doc, l.id) {
+                let mark = Rect::from_min_max(rect.right_bottom() - vec2(13.0, 13.0), rect.right_bottom());
+                ui.painter().rect_filled(mark.expand(1.0), 3.0, Color32::from_gray(40));
+                icons::paint(ui, mark, "triangle-alert", 11.0, t.warning);
+            }
         }
         // Gradient fills show the gradient itself (Photoshop); solid ones their colour.
         LayerContent::Fill(f) if crate::gradient_ui::paint_thumbnail(ui, l.id, f, rect) => {}

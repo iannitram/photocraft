@@ -3221,3 +3221,9 @@ curves	Smooth	매끄럽게
 	Remove after each stroke	획마다 제거
 	Apply the removal ({key})	제거 적용 ({key})
 	Strokes to remove: {n} (Enter applies, Esc cancels)	제거할 획: {n} (Enter 적용, Esc 취소)
+	Missing Fonts	누락된 글꼴
+	This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	이 텍스트는 설치되지 않은 글꼴을 사용합니다: {fonts}. 편집하면 텍스트가 대체 글꼴로 다시 그려집니다. 계속하시겠습니까?
+	Text was drawn in a substitute font	텍스트가 대체 글꼴로 그려졌습니다
+	Choose an installed font for the text, or undo to bring back the text as it was.	텍스트에 설치된 글꼴을 선택하거나, 실행 취소하여 텍스트를 원래대로 되돌리십시오.
+	Fonts used in this document are not installed	이 문서에 사용된 글꼴이 설치되어 있지 않습니다
+	Type layers look as they were saved until their text is edited.	문자 레이어는 텍스트를 편집하기 전까지 저장된 모습 그대로 표시됩니다.

@@ -3661,3 +3661,9 @@ curves	Smooth	スムーズ
 	Remove after each stroke	ストロークごとに削除
 	Apply the removal ({key})	削除を適用 ({key})
 	Strokes to remove: {n} (Enter applies, Esc cancels)	削除するストローク: {n}（Enter で適用、Esc で取り消し）
+	Missing Fonts	不足しているフォント
+	This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	このテキストは、インストールされていないフォントを使用しています: {fonts}。編集すると、テキストは代替フォントで描き直されます。続行しますか?
+	Text was drawn in a substitute font	テキストは代替フォントで描画されました
+	Choose an installed font for the text, or undo to bring back the text as it was.	テキストにインストール済みのフォントを選ぶか、取り消してテキストを元の状態に戻してください。
+	Fonts used in this document are not installed	このドキュメントで使用されているフォントがインストールされていません
+	Type layers look as they were saved until their text is edited.	テキストレイヤーは、テキストを編集するまで保存時の見た目のままです。

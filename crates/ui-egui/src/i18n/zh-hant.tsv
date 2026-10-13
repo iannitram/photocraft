@@ -2641,3 +2641,9 @@ curves	Smooth	平滑
 	Remove after each stroke	每次描邊後移除
 	Apply the removal ({key})	套用移除 ({key})
 	Strokes to remove: {n} (Enter applies, Esc cancels)	待移除的描邊：{n}（Enter 套用，Esc 取消）
+	Missing Fonts	遺失的字體
+	This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	此文字使用了未安裝的字體：{fonts}。編輯時將以替代字體重新繪製文字。是否繼續？
+	Text was drawn in a substitute font	文字已使用替代字體繪製
+	Choose an installed font for the text, or undo to bring back the text as it was.	請為文字選擇已安裝的字體，或復原以恢復原來的文字。
+	Fonts used in this document are not installed	此文件使用的字體未安裝
+	Type layers look as they were saved until their text is edited.	文字圖層在編輯其文字之前會維持儲存時的外觀。
