@@ -350,8 +350,8 @@ mod tests {
     fn standard_error_passes_through_and_its_end_is_kept_for_the_log() {
         let mut seen = Vec::new();
         let mut err = Capture::new(&mut seen);
-        assert!(write!(err, "warning: a font is missing\n").is_ok());
-        assert!(write!(err, "photocraft-cli: cannot open the file: it is empty\n").is_ok());
+        assert!(writeln!(err, "warning: a font is missing").is_ok());
+        assert!(writeln!(err, "photocraft-cli: cannot open the file: it is empty").is_ok());
         assert_eq!(err.text(), "warning: a font is missing\nphotocraft-cli: cannot open the file: it is empty");
         // Only the end of a long output is kept; all of it still reaches standard error.
         let long = "x".repeat(REASON_BYTES * 2);
