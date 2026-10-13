@@ -27,6 +27,7 @@
 
 ## Done locally (daytime sessions; don't redo)
 
+- **Overnight run 2026-10-12/13 (local, Hyperion)**: baseline over 162 real PSDs (161 open, render, save, reopen; 132 of 160 matched Photoshop's merged image before the two fixes above). `ours` is now `main` b3309e27 + nine branches (3c58ce16). Not yet run on it: `cargo xtask test-corpus` (one public file, psd-tools/masks.psb, has substituted type layers).
 2026-10-12, Windows desktop (RTX 3090 Ti, Rust 1.95):
 
 - Every branch below was read against the surrounding code and upstream's open PRs (476 scanned). Only `perf/psd-interleave-in-place` duplicates one (#2580).
@@ -82,4 +83,7 @@ All 8-bit RGB; no vector masks, clipping or adjustment layers; blends Normal / P
 | `fix/precise-inner-glow-soft-edges` | Precise Inner Glow measured from every not-fully-opaque pixel (real-file fidelity) | yes | **held**: needs a shareable Photoshop-made test file; one public oracle gets worse on one measure |
 | `perf/grabcut-bk-maxflow` | GrabCut cuts use Boykov-Kolmogorov: Select Subject 1.1-2.8x faster, same masks | yes | reviewed; ready for an upstream PR (Ian decides) |
 | `fix/select-and-mask-feather-sigma` | Select and Mask Feather sigma = radius | yes | **held**: unverified against Photoshop (#214 audit) |
+| `fix/type-substituted-font-gamma` | A type layer Photoshop saved with `substitutesUsed` (a missing font) is mixed without the text gamma, as Photoshop does; editing it makes it live type again | yes | measured on 59 type layers of 20 real files (no exception); unit tests in doc, compose, engine; ready for an upstream PR (Ian decides) |
+| `fix/stroke-opacity-replaces-fill` | A Normal-mode Stroke effect below 100 % opacity shows the backdrop through its inside part, not the layer's fill (CPU `stroke_replace`, GPU `F_REPLACE`) | yes | largest error on real files 0.749 -> 0.200; still open: the drop shadow shows through the see-through band; ready for an upstream PR (Ian decides) |
+| `wip/type-effects-text-gamma` | Experiment: a type layer's exterior effects mixed at the text gamma | **no** | **do not merge**: only files saved by Photoshop CC 2019 want it; 51 of 87 real files get worse. Kept as a record |
 | `perf/psd-interleave-in-place` | PSD channel interleave in place | **no** | dropped: duplicates upstream PR #2580. Delete once #2580 lands |
