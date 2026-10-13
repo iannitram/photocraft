@@ -4215,6 +4215,7 @@ dependencies = [
  "rfd",
  "ron",
  "serde_json",
+ "wayland-client",
  "winit",
  "winresource",
  "winsafe",

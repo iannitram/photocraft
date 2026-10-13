@@ -47,6 +47,9 @@ mod services;
 #[cfg(any(target_os = "macos", target_os = "linux", test))]
 mod tablet;
 mod ui_state;
+// Pure logic is tested on every platform; only Linux asks the compositor.
+#[cfg(any(target_os = "linux", test))]
+mod wayland_outputs;
 mod window_frame;
 
 use photocraft_engine::Session;
@@ -370,6 +373,9 @@ fn main() -> eframe::Result {
                     let var = |name| std::env::var(name).ok();
                     services.xwayland_command =
                         services::xwayland_command(var("FLATPAK_ID").as_deref(), var("APPIMAGE").as_deref(), std::env::var_os("DISPLAY").is_some());
+                    // winit reports a panel shown turned a quarter by its unturned size: tell the
+                    // work area, so a window too tall for the real desktop is maximized.
+                    photocraft_ui_egui::work_area::set_quarter_turned_modes(&cc.egui_ctx, wayland_outputs::quarter_turned_modes_now());
                 }
             }
             let mut app = PhotocraftApp::new(Session::new(), services);
