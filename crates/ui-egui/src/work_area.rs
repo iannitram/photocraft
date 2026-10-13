@@ -104,6 +104,46 @@ pub fn fit_window(ctx: &egui::Context) -> bool {
     true
 }
 
+/// Room kept free for a second window's title bar. A [`egui::ViewportBuilder`] sizes the window's
+/// content and the OS puts the title bar on top of that, which egui can't measure before the window
+/// exists (the Windows title bar is 31 pt, the macOS one 28 pt, the Linux desktops' near that).
+pub const TITLE_BAR: f32 = 32.0;
+/// The least room [`fitted_window`] gives a window, however small the monitor claims to be.
+pub const MIN_FITTED: Vec2 = vec2(320.0, 240.0);
+
+/// The size and the minimum size for a second window that wants `wanted` and at least `min`, on a
+/// `monitor` of that size: no wider than the monitor and no taller than what is left of it above
+/// the [`TASKBAR`] and below the window's [`TITLE_BAR`]. A minimum the window can't have there is
+/// lowered to its size, because a minimum larger than the screen forces the window off it. With no
+/// monitor, or a nonsense one, both come back unchanged.
+pub fn fitted_window(wanted: Vec2, min: Vec2, monitor: Option<Vec2>) -> (Vec2, Vec2) {
+    let Some(m) = monitor else { return (wanted, min) };
+    if !m.is_finite() || m.x < 1.0 || m.y < 1.0 {
+        return (wanted, min);
+    }
+    let room = vec2(m.x, m.y - TASKBAR - TITLE_BAR).max(MIN_FITTED);
+    let size = wanted.min(room);
+    (size, min.min(size))
+}
+
+/// The size of the monitor the main window is on: the one place [`fitted_builder`] gets it from.
+fn monitor_of(ctx: &egui::Context) -> Option<Vec2> {
+    ctx.input_for(egui::ViewportId::ROOT, |i| i.viewport().monitor_size)
+}
+
+/// `builder` with its size and minimum size fitted to the main window's monitor ([`fitted_window`]):
+/// for the app's second windows, which nothing else keeps on the screen. A builder that asks for no
+/// size is left alone. Not to be called inside a `ctx` closure (it reads the input).
+pub fn fitted_builder(ctx: &egui::Context, mut builder: egui::ViewportBuilder) -> egui::ViewportBuilder {
+    let Some(wanted) = builder.inner_size else { return builder };
+    let (size, min) = fitted_window(wanted, builder.min_inner_size.unwrap_or(Vec2::ZERO), monitor_of(ctx));
+    builder.inner_size = Some(size);
+    if builder.min_inner_size.is_some() {
+        builder.min_inner_size = Some(min);
+    }
+    builder
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -204,5 +244,104 @@ mod tests {
         let cmds = out.viewport_output.get(&egui::ViewportId::ROOT).map(|v| v.commands.clone()).unwrap_or_default();
         assert_eq!(cmds.contains(&egui::ViewportCommand::Maximized(true)), !cfg!(target_os = "macos"));
         assert!(fits(vec2(1366.0, 720.0), MONITOR) && !fits(vec2(1366.0, 740.0), MONITOR) && !fits(vec2(1440.0, 700.0), MONITOR));
+    }
+
+    /// What the Camera Raw window asks for: its size and its minimum size.
+    const CAMERA_RAW: (Vec2, Vec2) = (vec2(1360.0, 900.0), vec2(900.0, 600.0));
+
+    /// A fitted window is on the monitor, clear of the taskbar and its own title bar, and its
+    /// minimum doesn't ask for more than it has.
+    fn assert_on_screen(size: Vec2, min: Vec2, monitor: Vec2) {
+        assert!(size.x <= monitor.x, "{size:?} is wider than {monitor:?}");
+        assert!(size.y <= monitor.y - TASKBAR - TITLE_BAR, "{size:?} is too tall for {monitor:?}");
+        assert!(min.x <= size.x && min.y <= size.y, "minimum {min:?} is larger than {size:?}");
+    }
+
+    #[test]
+    fn a_second_window_larger_than_a_small_screen_is_fitted_to_it() {
+        let (wanted, least) = CAMERA_RAW;
+        // 1280 × 800: 1360 × 900 ran off the right edge and under the taskbar.
+        let (size, min) = fitted_window(wanted, least, Some(vec2(1280.0, 800.0)));
+        assert_on_screen(size, min, vec2(1280.0, 800.0));
+        assert_eq!((size, min), (vec2(1280.0, 800.0 - TASKBAR - TITLE_BAR), least), "its minimum still fits");
+        // 1366 × 768: wide enough, not tall enough.
+        let (size, min) = fitted_window(wanted, least, Some(MONITOR));
+        assert_on_screen(size, min, MONITOR);
+        assert_eq!((size, min), (vec2(1360.0, 768.0 - TASKBAR - TITLE_BAR), least));
+        // 1280 × 800 at a 125 % UI scale is 1024 × 640 points: the minimum has to give way too.
+        let (size, min) = fitted_window(wanted, least, Some(vec2(1024.0, 640.0)));
+        assert_on_screen(size, min, vec2(1024.0, 640.0));
+        assert_eq!((size, min), (vec2(1024.0, 560.0), vec2(900.0, 560.0)));
+        // A portrait screen: the width gives way, the height fits.
+        let (size, min) = fitted_window(wanted, least, Some(vec2(800.0, 1280.0)));
+        assert_on_screen(size, min, vec2(800.0, 1280.0));
+        assert_eq!((size, min), (vec2(800.0, 900.0), vec2(800.0, 600.0)));
+        // A window that fits is not made larger, and neither is its minimum.
+        assert_eq!(fitted_window(vec2(800.0, 600.0), Vec2::ZERO, Some(MONITOR)), (vec2(800.0, 600.0), Vec2::ZERO));
+    }
+
+    #[test]
+    fn a_large_unknown_or_nonsense_monitor_leaves_a_second_window_alone() {
+        let (wanted, least) = CAMERA_RAW;
+        assert_eq!(fitted_window(wanted, least, Some(vec2(2560.0, 1440.0))), CAMERA_RAW);
+        assert_eq!(fitted_window(wanted, least, None), CAMERA_RAW);
+        assert_eq!(fitted_window(wanted, least, Some(vec2(f32::NAN, 800.0))), CAMERA_RAW);
+        assert_eq!(fitted_window(wanted, least, Some(vec2(1280.0, f32::NAN))), CAMERA_RAW);
+        assert_eq!(fitted_window(wanted, least, Some(vec2(f32::INFINITY, 800.0))), CAMERA_RAW);
+        assert_eq!(fitted_window(wanted, least, Some(vec2(0.0, 0.0))), CAMERA_RAW);
+        assert_eq!(fitted_window(wanted, least, Some(vec2(1280.0, 0.0))), CAMERA_RAW);
+        assert_eq!(fitted_window(wanted, least, Some(vec2(-1280.0, -800.0))), CAMERA_RAW);
+    }
+
+    #[test]
+    fn a_tiny_monitor_does_not_fit_a_second_window_below_the_floor() {
+        let (wanted, least) = CAMERA_RAW;
+        // Shorter than the taskbar and the title bar together: the room would be negative.
+        assert_eq!(fitted_window(wanted, least, Some(vec2(200.0, 60.0))), (MIN_FITTED, MIN_FITTED));
+        assert_eq!(fitted_window(wanted, least, Some(vec2(1.0, 1.0))), (MIN_FITTED, MIN_FITTED));
+        // Only the height is short.
+        assert_eq!(fitted_window(wanted, least, Some(vec2(1280.0, 100.0))), (vec2(1280.0, MIN_FITTED.y), vec2(900.0, MIN_FITTED.y)));
+        // The floor is room to fit into, not a size to grow to.
+        assert_eq!(fitted_window(vec2(200.0, 100.0), vec2(100.0, 50.0), Some(vec2(200.0, 60.0))), (vec2(200.0, 100.0), vec2(100.0, 50.0)));
+    }
+
+    /// One frame of the main window on `monitor`, in which a second window's `builder` is fitted.
+    fn fitted(ctx: &egui::Context, monitor: Option<Vec2>, builder: egui::ViewportBuilder) -> egui::ViewportBuilder {
+        let mut input = egui::RawInput::default();
+        if let Some(v) = input.viewports.get_mut(&egui::ViewportId::ROOT) {
+            v.monitor_size = monitor;
+        }
+        let mut result = builder.clone();
+        let mut out = ctx.run_ui(input, |ui| {
+            result = fitted_builder(ui.ctx(), builder.clone());
+        });
+        out.textures_delta.clear();
+        result
+    }
+
+    #[test]
+    fn a_second_windows_builder_is_fitted_to_the_main_windows_monitor() {
+        let (wanted, least) = CAMERA_RAW;
+        let camera_raw = egui::ViewportBuilder::default().with_title("Camera Raw").with_inner_size(wanted).with_min_inner_size(least);
+        let ctx = egui::Context::default();
+        // Until the monitor is known the builder is as it was written.
+        assert_eq!(fitted(&ctx, None, camera_raw.clone()), camera_raw);
+        let b = fitted(&ctx, Some(vec2(1280.0, 800.0)), camera_raw.clone());
+        assert_eq!((b.inner_size, b.min_inner_size), (Some(vec2(1280.0, 800.0 - TASKBAR - TITLE_BAR)), Some(least)));
+        assert_eq!(b.title.as_deref(), Some("Camera Raw"), "the rest of the builder is kept");
+        let b = fitted(&ctx, Some(vec2(1024.0, 640.0)), camera_raw.clone());
+        assert_eq!((b.inner_size, b.min_inner_size), (Some(vec2(1024.0, 560.0)), Some(vec2(900.0, 560.0))));
+        assert_eq!(fitted(&ctx, Some(vec2(2560.0, 1440.0)), camera_raw.clone()), camera_raw);
+        // A builder with a size and no minimum (a document's extra window) gets no minimum.
+        let document = egui::ViewportBuilder::default().with_inner_size([800.0, 600.0]);
+        let b = fitted(&ctx, Some(vec2(1024.0, 640.0)), document.clone());
+        assert_eq!((b.inner_size, b.min_inner_size), (Some(vec2(800.0, 560.0)), None));
+        assert_eq!(fitted(&ctx, Some(MONITOR), document.clone()), document);
+        // A builder that asks for no size is left alone, its minimum included.
+        let unsized_window = egui::ViewportBuilder::default().with_min_inner_size(least);
+        assert_eq!(fitted(&ctx, Some(vec2(1024.0, 640.0)), unsized_window.clone()), unsized_window);
+        // It is the main window's monitor that counts, also when asked from outside a frame.
+        let b = fitted_builder(&ctx, camera_raw);
+        assert_eq!(b.inner_size, Some(vec2(1024.0, 560.0)));
     }
 }
