@@ -526,6 +526,48 @@ fn select_subject_finds_centred_object() {
     assert!(v > 0.9, "IoU {v}");
 }
 
+/// A lit face over dark clothes that leave the picture through its bottom edge, on a dark set:
+/// (image, ground truth = head and body).
+fn bust_scene(w: usize, h: usize, seed: u64) -> (RgbImage, Vec<bool>) {
+    let mut rng = Rng::new(seed);
+    let mut img = RgbImage::new(w, h);
+    let mut truth = vec![false; w * h];
+    let (cx, cy, r) = (w as f32 * 0.5, h as f32 * 0.36, h as f32 * 0.19);
+    let neck = cy + r * 0.8;
+    for y in 0..h {
+        for x in 0..w {
+            let (fx, fy) = (x as f32 + 0.5, y as f32 + 0.5);
+            let head = (fx - cx).powi(2) + (fy - cy).powi(2) <= r * r;
+            let s = ((fy - neck) / (r * 1.2)).clamp(0.0, 1.0);
+            let body = fy >= neck && (fx - cx).abs() <= r * (0.5 + 1.6 * s);
+            truth[y * w + x] = head || body;
+            let n = 0.03 * rng.normal();
+            let c: [f32; 3] = if head {
+                [0.80, 0.58, 0.47]
+            } else if body {
+                [0.20, 0.16, 0.15]
+            } else {
+                [0.09, 0.10, 0.13]
+            };
+            img.px[y * w + x] = c.map(|v| (v + n).clamp(0.0, 1.0));
+        }
+    }
+    (img, truth)
+}
+
+/// A head-and-shoulders still: the subject is the person, not the face alone. The clothes share
+/// no colour with the face and touch the bottom edge across most of its width, so saliency and
+/// one cut take the face for the whole.
+#[test]
+fn select_subject_takes_the_shoulders_with_the_face() {
+    let (w, h) = (240usize, 180usize);
+    let (img, truth) = bust_scene(w, h, 21);
+    let s = ImageSampler { img: &img, origin: (0, 0) };
+    let reg = subject::select_subject(&s, Rect::new(0, 0, w as i32, h as i32)).unwrap();
+    let v = iou(&reg, &truth, w, h);
+    assert!(v > 0.85, "IoU {v}");
+}
+
 #[test]
 fn saliency_highlights_the_object() {
     let (img, truth) = disc_scene(120, 90, 60.0, 45.0, 22.0, 8);
