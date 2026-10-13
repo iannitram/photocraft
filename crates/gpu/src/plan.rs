@@ -1556,10 +1556,14 @@ pub fn adjustment_program(adj: &Adjustment, transfer: Transfer, depth: photocraf
             (4, p, None)
         }
         Adjustment::BrightnessContrast { brightness, contrast, .. } => {
-            // Modern B/C: the shader rebuilds the curves from raw slider values (see compose.wgsl
-            // `mbright`/`mcontrast`, mirroring compose::adjust::modern_brightness/modern_contrast).
-            p[0] = [*brightness, *contrast, 0.0, 0.0];
-            (5, p, None)
+            // Modern B/C: one tone row sampled from the CPU's curves (brightness is a measured
+            // table, compose::adjust::modern_brightness), read by the Levels / Curves kernel for
+            // all three channels. Kernel 5, the shader's own copy of the curves, is retired.
+            let mut row = [0.0f32; 4096];
+            for (i, o) in row.iter_mut().enumerate() {
+                *o = adjust::modern_contrast(adjust::modern_brightness(i as f32 / 4095.0, *brightness), *contrast).clamp(0.0, 1.0);
+            }
+            (7, p, Some(vec![row; 3]))
         }
         Adjustment::Exposure { exposure, offset, gamma } => {
             p[0] = [2f32.powf(*exposure), *offset, gamma.max(0.01), transfer_exponent(transfer.for_exposure())];
@@ -1738,6 +1742,37 @@ mod tests {
     use super::*;
     use photocraft_color::{Color, ColorMode, SampleType};
     use photocraft_geom::Size;
+
+    #[test]
+    fn modern_brightness_contrast_reaches_the_shader_as_the_cpu_curve() {
+        // The shader gets tone rows sampled from compose::adjust's own curve (kernel 7), not a
+        // second copy of the formula: at every row sample the two compositors agree by construction.
+        for (brightness, contrast) in [(-150.0f32, 0.0f32), (-35.0, -9.0), (30.0, 40.0), (150.0, 0.0)] {
+            let adj = Adjustment::BrightnessContrast { brightness, contrast, legacy: false };
+            let (kind, p, rows) = adjustment_program(&adj, Transfer::Srgb, SampleType::U8);
+            assert_eq!(kind, 7, "{adj:?}");
+            assert_eq!(p[0], [0.0; 4], "no channel is the identity");
+            let rows = rows.unwrap();
+            assert_eq!(rows.len(), 3);
+            for row in &rows {
+                for i in [0usize, 1, 700, 2047, 2048, 3500, 4078, 4094, 4095] {
+                    let v = i as f32 / 4095.0;
+                    let want = adjust::modern_contrast(adjust::modern_brightness(v, brightness), contrast).clamp(0.0, 1.0);
+                    assert_eq!(row[i], want, "{adj:?} sample {i}");
+                }
+            }
+        }
+        // Photoshop 27.11, Brightness -150 on a 0..=255 ramp: level 254 comes out as 214.
+        let (_, _, rows) = adjustment_program(&Adjustment::BrightnessContrast { brightness: -150.0, contrast: 0.0, legacy: false }, Transfer::Srgb, SampleType::U8);
+        let row = &rows.unwrap()[0];
+        let at = |level: f32| {
+            let x = level / 255.0 * 4095.0;
+            let (i, f) = (x.floor() as usize, x - x.floor());
+            (row[i] * (1.0 - f) + row[(i + 1).min(4095)] * f) * 255.0
+        };
+        assert!((at(254.0) - 214.0).abs() < 0.5, "{}", at(254.0));
+        assert!((at(128.0) - 50.0).abs() < 0.5, "{}", at(128.0));
+    }
 
     #[test]
     fn lab_channel_adjustments_defer_to_the_cpu_in_lab_documents() {
