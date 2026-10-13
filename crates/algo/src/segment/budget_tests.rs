@@ -86,3 +86,20 @@ fn a_cancel_still_cancels_and_is_not_a_hand_over() {
     let (cut, handover) = grid_cut_within::<false>(&img, &cost_fg, &cost_bg, &fixed, weight, &|| false, Some(0));
     assert!(cut.is_some() && handover.is_none());
 }
+
+#[test]
+fn a_cancel_after_the_hand_over_still_cancels() {
+    let (img, cost_fg, cost_bg, fixed, beta) = band(12, BIG.0, BIG.1, BIG.2);
+    let weight = |d2: f32| 50.0 * (-beta * d2).exp();
+    // Not cancelled when first asked, which is when the automatic solver finds its budget of no
+    // asks spent; cancelled from then on, which is while Boykov–Kolmogorov redoes the cut.
+    let asked = std::cell::Cell::new(0usize);
+    let cancel = || {
+        asked.set(asked.get() + 1);
+        asked.get() > 1
+    };
+    let (cut, handover) = grid_cut_within::<true>(&img, &cost_fg, &cost_bg, &fixed, weight, &cancel, Some(0));
+    assert!(handover.is_some(), "the budget ran out before the cancel");
+    assert!(cut.is_none(), "the redone cut asks whether to stop, and stops");
+    assert!(asked.get() >= 2, "asked {} times", asked.get());
+}
