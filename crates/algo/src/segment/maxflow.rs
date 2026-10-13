@@ -24,7 +24,7 @@ const INF_DIST: u32 = u32::MAX;
 /// leaving tiny positive residuals that would cause long chains of negligible augmentations).
 const EPS: f32 = 1e-5;
 /// How many steps the max-flow loops take between asks whether to stop.
-const CANCEL_EVERY: u32 = 1024;
+pub(super) const CANCEL_EVERY: u32 = 1024;
 
 fn never() -> bool {
     false
