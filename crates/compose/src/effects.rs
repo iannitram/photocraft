@@ -1788,7 +1788,8 @@ fn knock_out_exterior(map: &mut Map, shape: &Map, fill_opacity: f32, band: Optio
     let fill = fill_opacity.clamp(0.0, 1.0);
     for (i, (coverage, alpha)) in map.v.iter_mut().zip(&shape.v).enumerate() {
         // Where a stroke below 100 % has taken the fill's place (`stroke_replace`) the layer is
-        // see-through however opaque its fill is: `band` holds what the stroke leaves open.
+        // see-through however opaque its fill is, and Photoshop keeps the whole shadow out of
+        // that band, whatever the stroke's opacity: `band` holds the band's share of the pixel.
         let open = band.and_then(|b| b.get(i)).copied().unwrap_or(0.0).clamp(0.0, 1.0);
         let see_through = (1.0 - fill).max(open);
         *coverage *= 1.0 - alpha * see_through;
@@ -1849,16 +1850,20 @@ pub(crate) fn composite_with_effects_prepared(
     // Multiple instances: the first listed is on top, so paint in reverse.
     let rev = || items.iter().copied().enumerate().rev();
 
-    // The part of each pixel a replacing stroke leaves see-through: its inside band times what
-    // its opacity lets through (the strongest of several strokes).
+    // The part of each pixel a replacing stroke's inside band covers (the widest of several
+    // strokes). The exterior effects are knocked out of all of it, not of the share the stroke's
+    // opacity lets through: on Photoshop 27.11 (white type on red, Inside stroke of black at
+    // 25 %, 1 px and 4 px, Drop Shadow Multiply 35 % with Layer Knocks Out Drop Shadow) every
+    // band pixel of a straight edge is the backdrop at 75 % (191 of 255), with the shadow at full
+    // strength one pixel further out.
     let open_band: Option<Vec<f32>> =
         match &maps.din {
             Some(d) => {
-                let replacing: Vec<(f32, f32)> = items
+                let replacing: Vec<f32> = items
                     .iter()
                     .filter_map(|e| if let Effect::Stroke(st) = e { Some(st) } else { None })
                     .filter(|st| stroke_replaces(st) && stroke_widths(st).0 > 0.0)
-                    .map(|st| (stroke_widths(st).0, 1.0 - st.common.opacity.clamp(0.0, 1.0)))
+                    .map(|st| stroke_widths(st).0)
                     .collect();
                 if replacing.is_empty() {
                     None
@@ -1870,7 +1875,7 @@ pub(crate) fn composite_with_effects_prepared(
                             .iter()
                             .zip(&din)
                             .map(|(a, dv)| {
-                                if *a > INSIDE_EPS { replacing.iter().map(|(w, open)| (w + 0.5 - dv).clamp(0.0, 1.0) * open).fold(0.0, f32::max) } else { 0.0 }
+                                if *a > INSIDE_EPS { replacing.iter().map(|w| (w + 0.5 - dv).clamp(0.0, 1.0)).fold(0.0, f32::max) } else { 0.0 }
                             })
                             .collect(),
                     )
