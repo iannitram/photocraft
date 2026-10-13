@@ -38,10 +38,15 @@ pub fn select_subject(sampler: &dyn Sampler, canvas: Rect) -> Option<Region> {
     if canvas.width() < 4 || canvas.height() < 4 {
         return None;
     }
+    // self-logging: the stall watch names the stage a Select Subject is in (see craft-stage).
+    let _job = craft_stage::scope("select.subject");
     let step = super::scale_for(canvas, WORK_PX);
+    craft_stage::stage_with("sample", &[("width", f64::from(canvas.width())), ("height", f64::from(canvas.height())), ("step", step as f64)]);
     let img = sampler.rgb_scaled(canvas, step);
     let (w, h) = (img.w, img.h);
+    craft_stage::stage_with("saliency", &[("width", w as f64), ("height", h as f64)]);
     let sal = saliency(&img);
+    craft_stage::stage("trimap");
     let t = otsu(&sal).clamp(0.15, 0.85);
     let mut trimap = vec![PR_BG; w * h];
     let mut any_fg = false;
@@ -62,12 +67,15 @@ pub fn select_subject(sampler: &dyn Sampler, canvas: Rect) -> Option<Region> {
     if !any_fg {
         return None;
     }
+    craft_stage::stage_with("grabcut", &[("threshold", f64::from(t))]);
     let (fg, bg) = grabcut::grabcut(&img, &mut trimap, 6)?;
+    craft_stage::stage("clean-mask");
     let low: Vec<bool> = trimap.iter().map(|v| *v == PR_FG || *v == grabcut::FG).collect();
     let low = super::clean_mask(&low, w, h, 0.2, 0.05);
     if !low.iter().any(|v| *v) {
         return None;
     }
+    craft_stage::stage("finish");
     super::finish_region(sampler, canvas, step, &low, w, h, Some((&fg, &bg)))
 }
 
@@ -76,8 +84,10 @@ pub fn saliency(img: &super::RgbImage) -> Vec<f32> {
     let (w, h) = (img.w, img.h);
     let lab: Vec<[f32; 3]> = img.px.iter().map(|p| rgb_to_lab(*p)).collect();
     let target = ((w * h) / 150).clamp(16, 400);
+    craft_stage::stage("saliency.superpixels");
     let sp = slic_lab(&lab, w, h, target, 10.0, 8);
     let n = sp.count;
+    craft_stage::stage("saliency.regions");
     // Region statistics.
     let mut mean = vec![[0.0f64; 3]; n];
     let mut pos = vec![[0.0f64; 2]; n];
@@ -120,6 +130,7 @@ pub fn saliency(img: &super::RgbImage) -> Vec<f32> {
             }
         }
     }
+    craft_stage::stage("saliency.geodesic");
     // Boundary connectivity from all-pairs geodesic distances (Dijkstra per region).
     let mut wbg = vec![0.0f32; n];
     let mut geo = vec![f32::INFINITY; n];
@@ -136,6 +147,7 @@ pub fn saliency(img: &super::RgbImage) -> Vec<f32> {
         let bnd = len / area.max(1e-6).sqrt();
         *wb = 1.0 - (-bnd * bnd / 2.0).exp();
     }
+    craft_stage::stage("saliency.contrast");
     // Background-weighted contrast.
     let mut wctr = vec![0.0f32; n];
     for p in 0..n {
@@ -149,6 +161,7 @@ pub fn saliency(img: &super::RgbImage) -> Vec<f32> {
     }
     let mx = wctr.iter().copied().fold(0.0f32, f32::max).max(1e-6);
     let wfg: Vec<f32> = wctr.iter().map(|v| v / mx).collect();
+    craft_stage::stage("saliency.optimise");
     // Saliency optimisation: min Σ wbg s² + Σ wfg (s−1)² + Σ_{i~j} w_ij (s_i − s_j)² (Gauss–Seidel).
     let wij: Vec<Vec<f32>> = (0..n).map(|p| adj[p].iter().map(|&q| (-dapp(p, q).powi(2) / (2.0 * SIGMA_CLR * SIGMA_CLR)).exp() + 0.1).collect()).collect();
     let mut s = wfg.clone();
@@ -162,6 +175,7 @@ pub fn saliency(img: &super::RgbImage) -> Vec<f32> {
             s[p] = num / den.max(1e-6);
         }
     }
+    craft_stage::stage("saliency.frequency");
     // Frequency-tuned saliency.
     let mut mean_all = [0.0f64; 3];
     for c in &lab {

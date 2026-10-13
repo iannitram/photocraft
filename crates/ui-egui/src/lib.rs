@@ -210,6 +210,7 @@ pub mod warp_preview;
 pub mod wheel_nav;
 pub mod wide_angle_ui;
 pub mod widgets;
+pub mod self_logging;
 pub mod work_area;
 pub mod workspace_ui;
 pub mod zoom_levels;
