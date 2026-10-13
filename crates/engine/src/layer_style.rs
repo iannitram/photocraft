@@ -887,14 +887,28 @@ fn replace_effects(s: &mut Session, p: &Value) -> Result<Value> {
 }
 
 fn set_effect(s: &mut Session, p: &Value, kind: &str) -> Result<Value> {
-    let fx = effect_from_params(kind, p).ok_or_else(|| EngineError::Other(format!("unknown effect {kind}")))?;
-    let (fx, pattern) = crate::pattern_cmds::resolve_effect(s, fx)?;
-    let label = format!("Layer Style: {}", fx.label());
     let add = b(p, "add", false);
     let id = match p.get("layer").and_then(Value::as_u64) {
         Some(id) => photocraft_doc::LayerId(id),
         None => s.active().and_then(|d| d.active_layer).ok_or(EngineError::Other("no active layer".into()))?,
     };
+    // `edit`: change only the settings named, on the effect the layer already has (a script's
+    // "make the stroke thicker"); without one to edit it is the plain command.
+    let existing = if b(p, "edit", false) && !add {
+        s.active().and_then(|d| d.doc.layer(id)).and_then(|l| l.effects.items.iter().find(|e| kind_of(e) == kind).cloned())
+    } else {
+        None
+    };
+    let edited = existing.is_some();
+    let fx = match existing {
+        Some(mut fx) => {
+            overlay_effect(&mut fx, p);
+            fx
+        }
+        None => effect_from_params(kind, p).ok_or_else(|| EngineError::Other(format!("unknown effect {kind}")))?,
+    };
+    let (fx, pattern) = crate::pattern_cmds::resolve_effect(s, fx)?;
+    let label = format!("Layer Style: {}", fx.label());
     s.edit(&label, |doc, _| {
         if let Some(pat) = &pattern {
             crate::pattern_cmds::ensure_in_doc(doc, pat);
@@ -909,7 +923,7 @@ fn set_effect(s: &mut Session, p: &Value, kind: &str) -> Result<Value> {
         }
         Ok(())
     })?;
-    Ok(json!({ "layer": id.0 }))
+    if edited { Ok(json!({ "layer": id.0, "edited": true })) } else { Ok(json!({ "layer": id.0 })) }
 }
 
 /// Stores the user default for one effect kind ("Make Default" in the Layer Style dialog).
@@ -969,48 +983,48 @@ pub fn specs() -> Vec<CommandSpec> {
         style_cmd!(
             "dropShadow",
             "Drop Shadow…",
-            r##"{"color":"#rrggbb","opacity":0..100=75,"blend":str="multiply","angle":deg=120,"useGlobalLight":bool,"distance":px=5,"spread":0..100,"size":px=5,"contour":"Linear|Cone|Cone - Inverted|Cove - Deep|Cove - Shallow|Gaussian|Half Round|Ring|Ring - Double|Rolling Slope - Descending|Rounded Steps|Sawtooth 1"|{"name":str,"points":[[in 0..1,out 0..1],…],"corners":[bool,…]}="Linear","antiAlias":bool,"noise":0..100,"knocksOut":bool,"add":bool,"layer":id}"##
+            r##"{"color":"#rrggbb","opacity":0..100=75,"blend":str="multiply","angle":deg=120,"useGlobalLight":bool,"distance":px=5,"spread":0..100,"size":px=5,"contour":"Linear|Cone|Cone - Inverted|Cove - Deep|Cove - Shallow|Gaussian|Half Round|Ring|Ring - Double|Rolling Slope - Descending|Rounded Steps|Sawtooth 1"|{"name":str,"points":[[in 0..1,out 0..1],…],"corners":[bool,…]}="Linear","antiAlias":bool,"noise":0..100,"knocksOut":bool,"add":bool,"edit":bool,"layer":id}"##
         ),
         style_cmd!(
             "innerShadow",
             "Inner Shadow…",
-            r##"{"color":"#rrggbb","opacity":0..100=75,"blend":str,"angle":deg,"distance":px,"choke":0..100,"size":px,"contour":name|curve,"antiAlias":bool,"noise":0..100,"add":bool}"##
+            r##"{"color":"#rrggbb","opacity":0..100=75,"blend":str,"angle":deg,"distance":px,"choke":0..100,"size":px,"contour":name|curve,"antiAlias":bool,"noise":0..100,"add":bool,"edit":bool}"##
         ),
         style_cmd!(
             "outerGlow",
             "Outer Glow…",
-            r##"{"color":"#rrggbb","opacity":0..100=75,"blend":str="screen","technique":"softer|precise","spread":0..100,"size":px,"range":0..100,"contour":name|curve,"antiAlias":bool,"noise":0..100,"add":bool}"##
+            r##"{"color":"#rrggbb","opacity":0..100=75,"blend":str="screen","technique":"softer|precise","spread":0..100,"size":px,"range":0..100,"contour":name|curve,"antiAlias":bool,"noise":0..100,"add":bool,"edit":bool}"##
         ),
         style_cmd!(
             "innerGlow",
             "Inner Glow…",
-            r##"{"color":"#rrggbb","opacity":0..100=75,"blend":str="screen","technique":"softer|precise","source":"edge|center","choke":0..100,"size":px,"contour":name|curve,"antiAlias":bool,"noise":0..100,"add":bool}"##
+            r##"{"color":"#rrggbb","opacity":0..100=75,"blend":str="screen","technique":"softer|precise","source":"edge|center","choke":0..100,"size":px,"contour":name|curve,"antiAlias":bool,"noise":0..100,"add":bool,"edit":bool}"##
         ),
         style_cmd!(
             "stroke",
             "Stroke…",
-            r##"{"size":px=3,"position":"outside|inside|center","color":"#rrggbb","from":"#rrggbb","to":"#rrggbb","style":str,"angle":deg,"opacity":0..100,"blend":str,"add":bool}"##
+            r##"{"size":px=3,"position":"outside|inside|center","color":"#rrggbb","from":"#rrggbb","to":"#rrggbb","style":str,"angle":deg,"opacity":0..100,"blend":str,"add":bool,"edit":bool}"##
         ),
-        style_cmd!("colorOverlay", "Color Overlay…", r##"{"color":"#rrggbb","opacity":0..100=100,"blend":str,"add":bool}"##),
+        style_cmd!("colorOverlay", "Color Overlay…", r##"{"color":"#rrggbb","opacity":0..100=100,"blend":str,"add":bool,"edit":bool}"##),
         style_cmd!(
             "gradientOverlay",
             "Gradient Overlay…",
-            r##"{"from":"#rrggbb","to":"#rrggbb","style":"linear|radial|angle|reflected|diamond","angle":deg=90,"scale":10..150=100,"reverse":bool,"opacity":0..100,"blend":str,"add":bool}"##
+            r##"{"from":"#rrggbb","to":"#rrggbb","style":"linear|radial|angle|reflected|diamond","angle":deg=90,"scale":10..150=100,"reverse":bool,"opacity":0..100,"blend":str,"add":bool,"edit":bool}"##
         ),
         style_cmd!(
             "patternOverlay",
             "Pattern Overlay…",
-            r##"{"pattern":id|name?=first library pattern,"opacity":0..100=100,"blend":str,"scale":1..1000=100,"angle":deg=0,"link":bool=true,"phaseX":px,"phaseY":px,"add":bool}"##
+            r##"{"pattern":id|name?=first library pattern,"opacity":0..100=100,"blend":str,"scale":1..1000=100,"angle":deg=0,"link":bool=true,"phaseX":px,"phaseY":px,"add":bool,"edit":bool}"##
         ),
         style_cmd!(
             "bevelEmboss",
             "Bevel & Emboss…",
-            r##"{"style":"inner|outer|emboss|pillow|stroke","technique":"smooth|chiselHard|chiselSoft","contour":bool,"contourName":name|curve,"contourRange":1..100=50,"contourAntiAlias":bool,"glossContour":name|curve,"texture":pattern id|name?,"textureScale":1..1000=100,"textureDepth":-1000..1000=100,"textureInvert":bool,"textureLink":bool=true,"depth":1..1000=100,"direction":"up|down","size":px=5,"soften":px,"angle":deg,"altitude":deg,"add":bool}"##
+            r##"{"style":"inner|outer|emboss|pillow|stroke","technique":"smooth|chiselHard|chiselSoft","contour":bool,"contourName":name|curve,"contourRange":1..100=50,"contourAntiAlias":bool,"glossContour":name|curve,"texture":pattern id|name?,"textureScale":1..1000=100,"textureDepth":-1000..1000=100,"textureInvert":bool,"textureLink":bool=true,"depth":1..1000=100,"direction":"up|down","size":px=5,"soften":px,"angle":deg,"altitude":deg,"add":bool,"edit":bool}"##
         ),
         style_cmd!(
             "satin",
             "Satin…",
-            r##"{"color":"#rrggbb","opacity":0..100=50,"blend":str,"angle":deg,"distance":px,"size":px,"contour":name|curve,"antiAlias":bool=true,"invert":bool,"add":bool}"##
+            r##"{"color":"#rrggbb","opacity":0..100=50,"blend":str,"angle":deg,"distance":px,"size":px,"contour":name|curve,"antiAlias":bool=true,"invert":bool,"add":bool,"edit":bool}"##
         ),
         CommandSpec {
             id: "layer.layerStyle.replace",
@@ -1172,6 +1186,36 @@ mod tests {
         assert_eq!(effects(&s).len(), 2, "adds a second instance");
         s.execute("layer.layerStyle.dropShadow", json!({"blend": "normal", "distance": 12})).unwrap();
         assert!(matches!(&effects(&s)[2], Effect::DropShadow(sh) if sh.common.blend == BlendMode::Normal && sh.distance == 12.0));
+    }
+
+    /// `edit` changes the settings named on the effect the layer has and keeps the rest (a
+    /// script's "make the stroke thicker"); without it the command starts from the defaults.
+    #[test]
+    fn edit_keeps_the_settings_not_named() {
+        let mut s = session();
+        s.execute("layer.layerStyle.stroke", json!({"size": 7, "position": "inside", "color": "#00ff00", "opacity": 50})).unwrap();
+        let r = s.execute("layer.layerStyle.stroke", json!({"size": 9, "edit": true})).unwrap();
+        assert_eq!(r["edited"], json!(true), "{r}");
+        assert_eq!(effects(&s).len(), 1);
+        match &effects(&s)[0] {
+            Effect::Stroke(st) => {
+                assert_eq!(st.size, 9.0);
+                assert_eq!(st.position, StrokePosition::Inside);
+                assert_eq!(st.common.opacity, 0.5);
+                assert_eq!(st.paint, FxPaint::Color(Color::rgb(0.0, 1.0, 0.0)));
+            }
+            other => panic!("{other:?}"),
+        }
+        // One history step: Undo brings the old size back.
+        s.execute("edit.undo", json!({})).unwrap();
+        assert!(matches!(&effects(&s)[0], Effect::Stroke(st) if st.size == 7.0));
+        // Nothing of that kind to edit: the plain command, from the defaults.
+        let r = s.execute("layer.layerStyle.outerGlow", json!({"size": 12, "edit": true})).unwrap();
+        assert!(r.get("edited").is_none(), "{r}");
+        assert!(matches!(&effects(&s)[1], Effect::OuterGlow(g) if g.size == 12.0));
+        // Without `edit` the stroke starts over from the defaults.
+        s.execute("layer.layerStyle.stroke", json!({"size": 2})).unwrap();
+        assert!(matches!(&effects(&s)[0], Effect::Stroke(st) if st.size == 2.0 && st.position != StrokePosition::Inside));
     }
 
     #[test]
