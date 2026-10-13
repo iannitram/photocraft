@@ -331,9 +331,10 @@ fn stroke_replace_mixes_the_band_and_the_rest_of_the_pixel() {
 #[test]
 fn drop_shadow_stays_out_of_a_see_through_stroke_band() {
     // "Layer Knocks Out Drop Shadow": the shadow must not show through the band a stroke below
-    // 100 % has opened in an opaque layer. Measured in Photoshop's composite of a real file
-    // (white type, 1 px Inside stroke of black at 25 %, shadow Multiply 35 %): the band shows
-    // the backdrop at 75 % with no shadow in it.
+    // 100 % has opened in an opaque layer. Measured on Photoshop 27.11 (white 120 pt type on red,
+    // Inside stroke of black at 25 %, 1 px on one copy and 4 px on the other, Drop Shadow Multiply
+    // 35 %, distance 6, size 6): every band pixel of a straight edge is 191 of 255, the backdrop
+    // at 75 % with no shadow in it, and the shadow is at full strength one pixel further out.
     let shadow = |knocks_out: bool| {
         Effect::DropShadow(photocraft_doc::Shadow {
             common: FxCommon::new(BlendMode::Multiply, 1.0),
