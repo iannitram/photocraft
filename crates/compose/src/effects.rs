@@ -1856,7 +1856,7 @@ pub(crate) fn composite_with_effects_prepared(
             Some(d) => {
                 let replacing: Vec<(f32, f32)> = items
                     .iter()
-                    .filter_map(|e| if let Effect::Stroke(st) = e { Some(*st) } else { None })
+                    .filter_map(|e| if let Effect::Stroke(st) = e { Some(st) } else { None })
                     .filter(|st| stroke_replaces(st) && stroke_widths(st).0 > 0.0)
                     .map(|st| (stroke_widths(st).0, 1.0 - st.common.opacity.clamp(0.0, 1.0)))
                     .collect();
