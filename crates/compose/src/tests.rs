@@ -1375,6 +1375,36 @@ fn emboss_shades_the_composited_layer() {
 }
 
 #[test]
+fn type_saved_with_substituted_fonts_mixes_without_the_text_gamma() {
+    // Photoshop composites a type layer it saved with `substitutesUsed` (a missing font) as the
+    // plain pixels it carried along: a half-covered white edge over black is the encoded mix
+    // (128), not the text-gamma one. Measured on real files: a 31 % white edge over (2, 2, 2)
+    // is 80/255 in Photoshop's own composite, where the gamma mix gives 120.
+    let make = |tysh: Option<&[u8]>, effect: bool| {
+        let mut d = Document::new("t", Size::new(40, 40), ColorMode::Rgb, SampleType::U8);
+        d.layers.push(solid_layer("bg", Rect::new(0, 0, 40, 40), [0.0, 0.0, 0.0, 1.0]));
+        let mut glyph = solid_layer("g", Rect::new(10, 10, 30, 30), [1.0, 1.0, 1.0, 1.0]);
+        glyph.surface_mut().unwrap().fill_rect(Rect::new(10, 10, 30, 11), &[1.0, 1.0, 1.0, 0.5]);
+        let t = photocraft_doc::TextLayer { cache: glyph.surface().cloned(), psd_raw: tysh.map(|b| std::sync::Arc::new(b.to_vec())), ..Default::default() };
+        let mut l = Layer::new("t", LayerContent::Text(t));
+        if effect {
+            // The layer-effects path mixes the layer the same way.
+            l.effects.items = vec![Effect::ColorOverlay { common: FxCommon::new(photocraft_color::BlendMode::Normal, 1.0), color: Color::WHITE }];
+        }
+        d.layers.push(l);
+        px(&d, 20, 10)[1]
+    };
+    let substituted: &[u8] = b"\0\x01........\0\0\0\x0fsubstitutesUsedbool\x01";
+    let own_fonts: &[u8] = b"\0\x01........\0\0\0\x0fsubstitutesUsedbool\0";
+    for effect in [false, true] {
+        let (plain, flag_off, no_data) = (make(Some(substituted), effect), make(Some(own_fonts), effect), make(None, effect));
+        assert!((plain - 128.0 / 255.0).abs() < 2.0 / 255.0, "effect {effect}: the encoded mix, got {}", plain * 255.0);
+        assert!(flag_off > plain + 0.1, "effect {effect}: live type keeps the text gamma: {} vs {}", flag_off * 255.0, plain * 255.0);
+        assert_eq!(flag_off, no_data, "effect {effect}");
+    }
+}
+
+#[test]
 fn interior_effects_keep_the_layer_alpha() {
     // A colour overlay replaces a half-transparent pixel's colour without adding coverage.
     let mut d = Document::new("t", Size::new(40, 40), ColorMode::Rgb, SampleType::U8);
