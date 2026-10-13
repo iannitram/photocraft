@@ -1784,9 +1784,13 @@ const FAR: f32 = 1.0e9;
 /// Keep an exterior effect behind the layer's shape when Fill is partly or wholly
 /// transparent. The visible part beneath a fully opaque fill is already covered by the
 /// layer, so avoid attenuating anti-aliased edges twice in that case.
-fn knock_out_exterior(map: &mut Map, shape: &Map, fill_opacity: f32) {
-    let see_through = 1.0 - fill_opacity.clamp(0.0, 1.0);
-    for (coverage, alpha) in map.v.iter_mut().zip(&shape.v) {
+fn knock_out_exterior(map: &mut Map, shape: &Map, fill_opacity: f32, band: Option<&[f32]>) {
+    let fill = fill_opacity.clamp(0.0, 1.0);
+    for (i, (coverage, alpha)) in map.v.iter_mut().zip(&shape.v).enumerate() {
+        // Where a stroke below 100 % has taken the fill's place (`stroke_replace`) the layer is
+        // see-through however opaque its fill is: `band` holds what the stroke leaves open.
+        let open = band.and_then(|b| b.get(i)).copied().unwrap_or(0.0).clamp(0.0, 1.0);
+        let see_through = (1.0 - fill).max(open);
         *coverage *= 1.0 - alpha * see_through;
     }
 }
@@ -1845,6 +1849,35 @@ pub(crate) fn composite_with_effects_prepared(
     // Multiple instances: the first listed is on top, so paint in reverse.
     let rev = || items.iter().copied().enumerate().rev();
 
+    // The part of each pixel a replacing stroke leaves see-through: its inside band times what
+    // its opacity lets through (the strongest of several strokes).
+    let open_band: Option<Vec<f32>> =
+        match &maps.din {
+            Some(d) => {
+                let replacing: Vec<(f32, f32)> = items
+                    .iter()
+                    .filter_map(|e| if let Effect::Stroke(st) = e { Some(*st) } else { None })
+                    .filter(|st| stroke_replaces(st) && stroke_widths(st).0 > 0.0)
+                    .map(|st| (stroke_widths(st).0, 1.0 - st.common.opacity.clamp(0.0, 1.0)))
+                    .collect();
+                if replacing.is_empty() {
+                    None
+                } else {
+                    let din = maps.crop_vec(d, big, 0.0);
+                    Some(
+                        shape
+                            .v
+                            .iter()
+                            .zip(&din)
+                            .map(|(a, dv)| {
+                                if *a > INSIDE_EPS { replacing.iter().map(|(w, open)| (w + 0.5 - dv).clamp(0.0, 1.0) * open).fold(0.0, f32::max) } else { 0.0 }
+                            })
+                            .collect(),
+                    )
+                }
+            }
+            None => None,
+        };
     for (i, e) in rev() {
         if let Effect::DropShadow(s) = e {
             let mut m = fx(i, 0);
@@ -1852,7 +1885,7 @@ pub(crate) fn composite_with_effects_prepared(
                 // The layer hides the shadow beneath it only where its fill is see-through: at
                 // 100 % fill the layer covers it anyway (and anti-aliased edges are not
                 // attenuated twice), at 0 % the shape shows the bare backdrop.
-                knock_out_exterior(&mut m, &shape, layer.fill_opacity);
+                knock_out_exterior(&mut m, &shape, layer.fill_opacity, open_band.as_deref());
             }
             paint_color(&mut work, &m, rgb(&s.color), s.common.blend, s.common.opacity);
         }
@@ -1862,7 +1895,7 @@ pub(crate) fn composite_with_effects_prepared(
             let mut m = fx(i, 0);
             // The glow is behind the shape, not painted across its interior when Fill is 0 %.
             // Preserve the existing anti-aliased edge when the fill is fully opaque.
-            knock_out_exterior(&mut m, &shape, layer.fill_opacity);
+            knock_out_exterior(&mut m, &shape, layer.fill_opacity, open_band.as_deref());
             paint_glow(&mut work, &m, g, sb, anchor, big, patterns);
         }
     }

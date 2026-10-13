@@ -327,3 +327,47 @@ fn stroke_replace_mixes_the_band_and_the_rest_of_the_pixel() {
     // Out-of-range input is clamped.
     assert!(close4(effects::stroke_replace(white, black, 7.0, 3.0), [0.0, 0.0, 0.0, 1.0]));
 }
+
+#[test]
+fn drop_shadow_stays_out_of_a_see_through_stroke_band() {
+    // "Layer Knocks Out Drop Shadow": the shadow must not show through the band a stroke below
+    // 100 % has opened in an opaque layer. Measured in Photoshop's composite of a real file
+    // (white type, 1 px Inside stroke of black at 25 %, shadow Multiply 35 %): the band shows
+    // the backdrop at 75 % with no shadow in it.
+    let shadow = |knocks_out: bool| {
+        Effect::DropShadow(photocraft_doc::Shadow {
+            common: FxCommon::new(BlendMode::Multiply, 1.0),
+            color: Color::BLACK,
+            angle: 90.0,
+            use_global_light: false,
+            distance: 0.0,
+            spread: 0.0,
+            size: 0.0,
+            contour: photocraft_doc::Contour::Linear,
+            anti_alias: false,
+            noise: 0.0,
+            knocks_out,
+        })
+    };
+    let make = |knocks_out: bool, opacity: f32| {
+        let mut d = doc(40, 40);
+        let mut l = Layer::raster("sq", PixelFormat::RGBA8);
+        l.surface_mut().unwrap().fill_rect(Rect::new(10, 10, 30, 30), &[0.0, 0.0, 1.0, 1.0]);
+        l.effects.items = vec![
+            shadow(knocks_out),
+            Effect::Stroke(StrokeFx {
+                common: FxCommon::new(BlendMode::Normal, opacity),
+                size: 1.0,
+                position: StrokePosition::Inside,
+                paint: FxPaint::Color(Color::BLACK),
+            }),
+        ];
+        d.layers.push(l);
+        px(&d, 10, 20)
+    };
+    // The shadow lies exactly under the square (no distance, no size): black at 100 %.
+    assert!(close4(make(true, 0.25), [0.75, 0.75, 0.75, 1.0]), "knocked out: {:?}", make(true, 0.25));
+    assert!(close4(make(false, 0.25), [0.0, 0.0, 0.0, 1.0]), "not knocked out, the shadow shows through the band: {:?}", make(false, 0.25));
+    // A stroke at 100 % leaves nothing open either way.
+    assert!(close4(make(true, 1.0), [0.0, 0.0, 0.0, 1.0]));
+}
