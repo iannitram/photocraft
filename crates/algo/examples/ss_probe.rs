@@ -5,8 +5,9 @@
 //!
 //! `<in-dir>` holds `<name>.rgb` (8-bit RGB, row-major) beside `<name>.dim` ("width height").
 //! Each line of the variants file is `name bg_sides portrait skin_gate shoulder hair [band]`,
-//! where `portrait` is `off`, `probable` or `core` and `band` is `largest` or left out (the
-//! band hangs under every part of the first selection). Output: `<out-dir>/<variant>/<name>.mask`
+//! where `portrait` is `off`, `probable` or `core`, followed by any of the words `largest` (the
+//! band hangs under the largest part of the first selection only) and `confine` (the second cut
+//! may only add inside the band). Output: `<out-dir>/<variant>/<name>.mask`
 //! (width x height bytes, 255 = selected) or `<name>.none`, and `times.txt`.
 use std::time::Instant;
 
@@ -51,7 +52,8 @@ fn main() {
             skin_gate: f[3].parse().expect("skin_gate"),
             shoulder: f[4].parse().expect("shoulder"),
             hair: f[5].parse().expect("hair"),
-            band_under_largest: f.get(6).is_some_and(|v| *v == "largest"),
+            band_under_largest: f[6..].contains(&"largest"),
+            confine: f[6..].contains(&"confine"),
         };
         let dir = format!("{outdir}/{}", f[0]);
         std::fs::create_dir_all(&dir).expect("out-dir");

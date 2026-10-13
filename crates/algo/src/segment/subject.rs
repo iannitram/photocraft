@@ -75,11 +75,16 @@ pub struct SubjectTuning {
     /// Hang the shoulders' band under the largest connected part of the first selection only,
     /// not under every part (a lit patch of background beside the face is a part too).
     pub band_under_largest: bool,
+    /// In the second cut, read everything outside the first selection and the band as definite
+    /// background, so the cut can only add inside the band (without this it may also take
+    /// undecided pixels anywhere that match the clothes' colour).
+    pub confine: bool,
 }
 
 impl SubjectTuning {
     /// What [`select_subject`] does.
-    pub const SHIPPED: Self = Self { bg_sides: NOT_BOTTOM, portrait: Portrait::Probable, skin_gate: 0.3, shoulder: 1.0, hair: 0.0, band_under_largest: false };
+    pub const SHIPPED: Self =
+        Self { bg_sides: NOT_BOTTOM, portrait: Portrait::Probable, skin_gate: 0.3, shoulder: 1.0, hair: 0.0, band_under_largest: false, confine: false };
 }
 
 impl Default for SubjectTuning {
@@ -259,6 +264,8 @@ fn portrait_trimap(img: &super::RgbImage, sal: &[f32], t: f32, low: &[bool], tun
             } else if (dist[i] <= reach_hair || side[i] <= reach_body) && !on_side(x, y, w, h, tune.bg_sides & NOT_BOTTOM) {
                 // The other three sides stay background.
                 trimap[i] = PR_FG;
+            } else if tune.confine {
+                trimap[i] = BG;
             }
         }
     }
