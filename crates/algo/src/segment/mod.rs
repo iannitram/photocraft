@@ -451,6 +451,10 @@ fn grid_cut_impl<const OPTIMIZED: bool>(
     }
     if OPTIMIZED && solver == Solver::Auto {
         g.maxflow_with(cancel)?;
+    } else if OPTIMIZED {
+        // Boykov–Kolmogorov by name: the redo of a cut that ran out of steps. It asks too, so a
+        // cancel after the hand-over still cancels.
+        g.maxflow_bk_with(cancel)?;
     } else {
         g.maxflow_bk();
     }
