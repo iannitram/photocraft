@@ -1084,18 +1084,29 @@ fn sample_stops(stops: &[(f32, [f32; 3])], t: f32) -> [f32; 3] {
 
 /// Composite `color × coverage` into `dst` (both over the same rectangle).
 fn paint(dst: &mut Buffer, m: &Map, color: impl Fn(usize) -> [f32; 4], blend: BlendMode, opacity: f32) {
+    paint_g(dst, m, color, blend, opacity, 1.0);
+}
+
+/// [`paint`] with the coverage mixed at the text blending gamma `gamma`
+/// ([`psblend::composite_gamma`]; 1 is the plain mix): what a type layer's effects draw on its
+/// backdrop.
+fn paint_g(dst: &mut Buffer, m: &Map, color: impl Fn(usize) -> [f32; 4], blend: BlendMode, opacity: f32, gamma: f32) {
     for (i, p) in dst.px.iter_mut().enumerate() {
         let a = m.v[i] * opacity;
         if a <= 0.0 {
             continue;
         }
         let c = color(i);
-        *p = psblend::composite(blend, *p, [c[0], c[1], c[2], c[3] * a], 1.0);
+        *p = psblend::composite_gamma(blend, *p, [c[0], c[1], c[2], c[3] * a], 1.0, gamma);
     }
 }
 
 fn paint_color(dst: &mut Buffer, m: &Map, c: [f32; 3], blend: BlendMode, opacity: f32) {
     paint(dst, m, |_| [c[0], c[1], c[2], 1.0], blend, opacity);
+}
+
+fn paint_color_g(dst: &mut Buffer, m: &Map, c: [f32; 3], blend: BlendMode, opacity: f32, gamma: f32) {
+    paint_g(dst, m, |_| [c[0], c[1], c[2], 1.0], blend, opacity, gamma);
 }
 
 /// Spread / choke of a soft effect: (dilation radius, blur width). The dilation is whole pixels
@@ -1240,14 +1251,17 @@ pub fn glow_gradient_gain(range: f32) -> f32 {
 /// on (photoshop corpus outer-glow-gradient.psd: 1.4/255 mean, against bands across the canvas;
 /// psd-tools layer_params.psd). Glows have no gradient angle, style or Reverse.
 #[allow(clippy::too_many_arguments)]
-fn paint_glow(dst: &mut Buffer, m: &Map, g: &Glow, shape_bounds: Rect, anchor: (f64, f64), big: Rect, patterns: &PreparedPatterns<'_>) {
-    let FxPaint::Gradient(gradient) = &g.paint else {
-        return paint_fx(dst, m, &g.paint, shape_bounds, anchor, big, g.common.blend, g.common.opacity, patterns);
+#[allow(clippy::too_many_arguments)]
+fn paint_glow(dst: &mut Buffer, m: &Map, g: &Glow, shape_bounds: Rect, anchor: (f64, f64), big: Rect, patterns: &PreparedPatterns<'_>, gamma: f32) {
+    let gradient = match &g.paint {
+        FxPaint::Gradient(gradient) => gradient,
+        FxPaint::Color(c) => return paint_color_g(dst, m, rgb(c), g.common.blend, g.common.opacity, gamma),
+        FxPaint::Pattern { .. } => return paint_fx(dst, m, &g.paint, shape_bounds, anchor, big, g.common.blend, g.common.opacity, patterns),
     };
     let prepared = PreparedGradient::new(gradient);
     let gain = glow_gradient_gain(g.range);
     let strength = Map { w: m.w, h: m.h, v: m.v.iter().map(|v| (v * gain).min(1.0)).collect() };
-    paint(dst, &strength, |i| prepared.sample(1.0 - m.v.get(i).copied().unwrap_or(0.0).clamp(0.0, 1.0)), g.common.blend, g.common.opacity);
+    paint_g(dst, &strength, |i| prepared.sample(1.0 - m.v.get(i).copied().unwrap_or(0.0).clamp(0.0, 1.0)), g.common.blend, g.common.opacity, gamma);
 }
 
 /// A box width as the blurs use it: at least 1, at most [`MAX_REACH`] (an effect never reaches
@@ -1842,6 +1856,12 @@ pub(crate) fn composite_with_effects_prepared(
     }
     let items: Vec<&Effect> = layer.effects.items.iter().filter(|e| e.enabled()).collect();
     let vector_shape = matches!(layer.content, photocraft_doc::LayerContent::Shape(_));
+    // Live type: Photoshop mixes the layer and what its effects draw on the backdrop at the text
+    // blending gamma. Measured on its own composite of real files: the anti-aliased outer edge of
+    // a black Outside stroke around type over (102, 102, 255) is (44, 44, 121) where a plain
+    // mix of the same coverage gives (32, 32, 81); 98 % of 6,675 such pixels are within 2/255
+    // of the gamma mix.
+    let gamma = crate::text_gamma(layer);
     // Multiple instances: the first listed is on top, so paint in reverse.
     let rev = || items.iter().copied().enumerate().rev();
 
@@ -1854,7 +1874,7 @@ pub(crate) fn composite_with_effects_prepared(
                 // attenuated twice), at 0 % the shape shows the bare backdrop.
                 knock_out_exterior(&mut m, &shape, layer.fill_opacity);
             }
-            paint_color(&mut work, &m, rgb(&s.color), s.common.blend, s.common.opacity);
+            paint_color_g(&mut work, &m, rgb(&s.color), s.common.blend, s.common.opacity, gamma);
         }
     }
     for (i, e) in rev() {
@@ -1863,7 +1883,7 @@ pub(crate) fn composite_with_effects_prepared(
             // The glow is behind the shape, not painted across its interior when Fill is 0 %.
             // Preserve the existing anti-aliased edge when the fill is fully opaque.
             knock_out_exterior(&mut m, &shape, layer.fill_opacity);
-            paint_glow(&mut work, &m, g, sb, anchor, big, patterns);
+            paint_glow(&mut work, &m, g, sb, anchor, big, patterns, gamma);
         }
     }
 
@@ -1917,7 +1937,7 @@ pub(crate) fn composite_with_effects_prepared(
     }
     for (i, e) in rev() {
         if let Effect::InnerGlow(g) = e {
-            paint_glow(&mut lay, &rel(fx(i, 0)), g, sb, anchor, big, patterns);
+            paint_glow(&mut lay, &rel(fx(i, 0)), g, sb, anchor, big, patterns, 1.0);
         }
     }
     if interior_group {
@@ -1982,6 +2002,9 @@ pub(crate) fn composite_with_effects_prepared(
     // them top over bottom.
     if strokes.iter().any(|st| widths(st).1 > 0.0) {
         let base = work.clone();
+        // The strokes' shares are mixed with the backdrop in the layer's mixing space.
+        let to_mix = |v: f32| if gamma == 1.0 { v } else { psblend::text_encode(v, gamma) };
+        let from_mix = |v: f32| if gamma == 1.0 { v } else { psblend::text_decode(v, gamma) };
         let mut acc = vec![[0.0f32; 4]; w * h]; // premultiplied Σ share·blended
         let mut cover = vec![0.0f32; w * h];
         for st in strokes.iter().copied() {
@@ -2023,7 +2046,7 @@ pub(crate) fn composite_with_effects_prepared(
             for ((a, b), s) in acc.iter_mut().zip(&blended.px).zip(&share) {
                 if *s > 0.0 {
                     for c in 0..3 {
-                        a[c] += s * b[c] * b[3];
+                        a[c] += s * to_mix(b[c]) * b[3];
                     }
                     a[3] += s * b[3];
                 }
@@ -2036,7 +2059,8 @@ pub(crate) fn composite_with_effects_prepared(
             let k = 1.0 - c.min(1.0);
             let alpha = p[3] * k + a[3];
             if alpha > 0.0 {
-                *p = [(p[0] * p[3] * k + a[0]) / alpha, (p[1] * p[3] * k + a[1]) / alpha, (p[2] * p[3] * k + a[2]) / alpha, alpha.min(1.0)];
+                let mix = |i: usize| from_mix((to_mix(p[i]) * p[3] * k + a[i]) / alpha);
+                *p = [mix(0), mix(1), mix(2), alpha.min(1.0)];
             }
         }
     }
@@ -2052,7 +2076,6 @@ pub(crate) fn composite_with_effects_prepared(
 
     // Layer (with interior effects) onto the exterior result, in the layer's mode.
     let mode = if layer.blend == BlendMode::PassThrough { BlendMode::Normal } else { layer.blend };
-    let gamma = crate::text_gamma(layer);
     for (wp, lp) in work.px.iter_mut().zip(&lay.px) {
         if lp[3] > 0.0 {
             *wp = psblend::composite_gamma(mode, *wp, *lp, 1.0, gamma);
