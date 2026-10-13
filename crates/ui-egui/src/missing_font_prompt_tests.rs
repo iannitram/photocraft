@@ -205,6 +205,35 @@ fn the_layers_panel_marks_type_whose_font_is_missing() {
     assert!(!layer_missing(&mut app, &doc, id));
 }
 
+/// The whole window laid out and painted frame by frame (no renderer): the notice from opening,
+/// the Layers panel with its caution mark, the prompt with its question, then the edit itself.
+#[test]
+fn the_notice_the_layer_mark_and_the_prompt_are_drawn_in_the_window() {
+    use egui_kittest::kittest::Queryable;
+    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1200.0, 800.0)).with_max_steps(64).build_eframe(|cc| {
+        PhotocraftApp::setup_context(&cc.egui_ctx, Default::default());
+        let (mut app, _, _) = app_with_type(Some(MISSING), true);
+        document_opened(&mut app);
+        app
+    });
+    h.run_steps(4);
+    assert!(h.query_by_label_contains("Fonts used in this document are not installed").is_some(), "the notice is on screen");
+    let id = h.state().session.active().unwrap().active_layer.unwrap();
+    let marked = h.state().missing_font_layers.as_ref().map(|(_, ids)| ids.clone());
+    assert_eq!(marked, Some(vec![id.0]), "the Layers panel drew the type layer's thumbnail with the mark");
+
+    let ctx = h.ctx.clone();
+    let dialog = crate::menus::invoke(h.state_mut(), &ctx, "type.editText", json!({})).unwrap()["dialog"].as_u64().unwrap();
+    h.run_steps(4);
+    assert!(h.query_by_label_contains("Editing it will redraw the text in a substitute font").is_some(), "the prompt shows its question");
+    assert!(h.state().ui.text_edit.is_none());
+
+    crate::dialogs::confirm(h.state_mut(), dialog).unwrap();
+    h.run_steps(4);
+    assert!(prompt(h.state()).is_none());
+    assert_eq!(h.state().ui.text_edit.as_ref().map(|e| e.layer), Some(id.0), "the edit runs, with its caret and frame drawn");
+}
+
 #[test]
 fn the_strings_are_translated_in_every_complete_catalog() {
     for lang in crate::i18n::Lang::all().filter(|l| l.complete_menus()) {
