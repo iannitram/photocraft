@@ -144,6 +144,12 @@ impl Graph {
         self.bk(&never).unwrap_or(self.flow)
     }
 
+    /// [`Graph::maxflow_bk`] that stops when `cancel` returns true: `None` then, and the cut is
+    /// meaningless.
+    pub(super) fn maxflow_bk_with(&mut self, cancel: &dyn Fn() -> bool) -> Option<f64> {
+        self.bk(cancel)
+    }
+
     fn bk(&mut self, cancel: &dyn Fn() -> bool) -> Option<f64> {
         let n = self.node_count();
         let mut queue: VecDeque<u32> = VecDeque::new();
