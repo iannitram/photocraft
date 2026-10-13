@@ -1786,6 +1786,24 @@ fn type_layers_blend_with_text_gamma() {
     ];
     d.layers.push(l);
     fx_check(&mut g, &d, "text fx");
+    // What a type layer's effects draw on the backdrop is mixed at the text gamma too: outside
+    // strokes (two, a colour and a gradient), an outer glow, a shadow; also at another gamma and
+    // with the setting off.
+    let mut d = fx_doc(96, 80, SampleType::U8);
+    let mut l = as_text(blob("fx out", d.pixel_format(), 46.0, 40.0, 18.0, [0.4, 0.4, 1.0]));
+    l.effects.items = vec![
+        Effect::Stroke(stroke(2.5, StrokePosition::Outside, FxPaint::Color(Color::rgb(0.0, 0.0, 0.0)))),
+        Effect::Stroke(stroke(5.5, StrokePosition::Center, FxPaint::Gradient(gradient()))),
+        Effect::OuterGlow(glow(FxPaint::Color(Color::rgb(1.0, 0.9, 0.4)), GlowTechnique::Softer, 9.0, 0.1, GlowSource::Edge)),
+        Effect::DropShadow(shadow(BlendMode::Multiply, 0.6, 120.0, 6.0, 5.0, 0.0)),
+    ];
+    d.layers.push(l);
+    fx_check(&mut g, &d, "text exterior fx");
+    for gamma in [1.8, 1.0] {
+        photocraft_compose::psblend::set_text_gamma(gamma);
+        fx_check(&mut g, &d, &format!("text exterior fx gamma {gamma}"));
+    }
+    photocraft_compose::psblend::set_text_gamma(photocraft_compose::psblend::TEXT_GAMMA);
     // Emboss styles shade the composited layer (merge, shade, then the opacity mix), also as a
     // clipped layer over an opaque base.
     let mut e = fx_doc(96, 80, SampleType::U8);

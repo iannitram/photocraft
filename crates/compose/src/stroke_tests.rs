@@ -247,3 +247,68 @@ fn hairline_vector_stroke_keeps_the_files_edge_pixel_colour() {
         assert!(close4(px(&d, 20, 20), [fill, fill, fill, 1.0]), "{sample:?} {:?}", px(&d, 20, 20));
     }
 }
+
+/// A 20 px square of (102, 102, 255) as type (`tysh`: its Photoshop data) or as plain pixels,
+/// over a (204, 51, 51) backdrop.
+fn square_on_red(text: bool, tysh: Option<&[u8]>, effect: Effect) -> Document {
+    let mut d = Document::with_background("t", Size::new(60, 60), ColorMode::Rgb, SampleType::U8, Color::rgb(0.8, 0.2, 0.2));
+    let mut l = Layer::raster("g", PixelFormat::RGBA8);
+    l.surface_mut().unwrap().fill_rect(Rect::new(20, 20, 40, 40), &[0.4, 0.4, 1.0, 1.0]);
+    if text {
+        let t = photocraft_doc::TextLayer { cache: l.surface().cloned(), psd_raw: tysh.map(|b| std::sync::Arc::new(b.to_vec())), ..Default::default() };
+        l = Layer::new("t", LayerContent::Text(t));
+    }
+    l.effects.items = vec![effect];
+    d.layers.push(l);
+    d
+}
+
+#[test]
+fn type_layer_effects_mix_onto_the_backdrop_at_the_text_gamma() {
+    // Photoshop mixes what a type layer's effects draw on the backdrop the way it mixes the type
+    // itself. Measured in its own composite of real files (CC 2019): the half-covered outer edge
+    // of a black Outside stroke around type over (102, 102, 255) is (44, 44, 121) at 32 %
+    // backdrop, where the plain mix is (32, 32, 81); 98 % of 6,675 such pixels are within 2/255
+    // of the gamma mix.
+    let red = [0.8, 0.2, 0.2, 1.0];
+    let gamma_mix = |ink: [f32; 3], a: f32, mode: BlendMode| psblend::composite_gamma(mode, red, [ink[0], ink[1], ink[2], a], 1.0, psblend::TEXT_GAMMA);
+    let plain_mix = |ink: [f32; 3], a: f32, mode: BlendMode| psblend::composite(mode, red, [ink[0], ink[1], ink[2], a], 1.0);
+    // A 6.5 px stroke ends on a half-covered pixel, 7 px out: x = 13.
+    let st = || stroke(6.5, StrokePosition::Outside, FxPaint::Color(Color::BLACK));
+    let (want, plain) = (gamma_mix([0.0; 3], 0.5, BlendMode::Normal), plain_mix([0.0; 3], 0.5, BlendMode::Normal));
+    assert!((want[0] - plain[0]).abs() > 0.05, "the two mixes differ: {want:?} {plain:?}");
+    let at = |d: &Document| px(d, 13, 30);
+    assert!(close4(at(&square_on_red(true, None, st())), want), "live type: {:?} want {want:?}", at(&square_on_red(true, None, st())));
+    assert!(close4(at(&square_on_red(false, None, st())), plain), "pixels: {:?} want {plain:?}", at(&square_on_red(false, None, st())));
+    // Type Photoshop saved with substituted fonts is plain pixels to it.
+    let substituted: &[u8] = b"\0\x01........\0\0\0\x0fsubstitutesUsedbool\x01";
+    assert!(close4(at(&square_on_red(true, Some(substituted), st())), plain), "{:?}", at(&square_on_red(true, Some(substituted), st())));
+    // Inside the stroke band and far outside it nothing changes.
+    assert!(close4(px(&square_on_red(true, None, st()), 16, 30), [0.0, 0.0, 0.0, 1.0]));
+    assert!(close4(px(&square_on_red(true, None, st()), 5, 30), red));
+
+    // A hard-edged drop shadow at 50 %: the shadowed backdrop is the gamma mix for type.
+    let shadow = || {
+        Effect::DropShadow(photocraft_doc::Shadow {
+            common: FxCommon::new(BlendMode::Multiply, 0.5),
+            color: Color::BLACK,
+            angle: 180.0,
+            use_global_light: false,
+            distance: 8.0,
+            spread: 0.0,
+            size: 0.0,
+            contour: photocraft_doc::Contour::Linear,
+            anti_alias: false,
+            noise: 0.0,
+            knocks_out: true,
+        })
+    };
+    let (want, plain) = (gamma_mix([0.0; 3], 0.5, BlendMode::Multiply), plain_mix([0.0; 3], 0.5, BlendMode::Multiply));
+    let shadowed = |d: &Document| [px(d, 44, 30), px(d, 15, 30)].into_iter().find(|p| (p[0] - red[0]).abs() > 0.05).unwrap_or(red);
+    assert!(close4(shadowed(&square_on_red(true, None, shadow())), want), "type shadow: {:?} want {want:?}", shadowed(&square_on_red(true, None, shadow())));
+    assert!(
+        close4(shadowed(&square_on_red(false, None, shadow())), plain),
+        "pixel shadow: {:?} want {plain:?}",
+        shadowed(&square_on_red(false, None, shadow()))
+    );
+}

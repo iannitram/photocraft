@@ -287,6 +287,11 @@ fn text_dec(v: vec3<f32>, g: f32) -> vec3<f32> {
 
 // `psblend::composite_gamma`: coverage mixed in the text blending space (type layers, 1.45).
 fn composite_g(mode: i32, b: vec4<f32>, s: vec4<f32>, opacity: f32, gamma_on: bool) -> vec4<f32> {
+    return composite_gv(mode, b, s, opacity, gamma_on, op.p4.w); // psblend::text_gamma
+}
+
+// `composite_g` with the gamma given (effect paints keep it in `p4.x`: `p4.w` is their knockout).
+fn composite_gv(mode: i32, b: vec4<f32>, s: vec4<f32>, opacity: f32, gamma_on: bool, g: f32) -> vec4<f32> {
     if (!gamma_on) { return composite(mode, b, s, opacity); }
     let ab = b.a;
     let as_ = s.a * opacity;
@@ -294,7 +299,6 @@ fn composite_g(mode: i32, b: vec4<f32>, s: vec4<f32>, opacity: f32, gamma_on: bo
     let bl = blend_rgb(mode, b.rgb, s.rgb);
     let ao = as_ + ab * (1.0 - as_);
     if (ao <= 0.0) { return vec4(0.0); }
-    let g = op.p4.w; // psblend::text_gamma
     let pw = (1.0 - as_) * ab * text_enc(b.rgb, g) + (1.0 - ab) * as_ * text_enc(s.rgb, g) + as_ * ab * text_enc(bl, g);
     return vec4(text_dec(pw / ao, g), ao);
 }
@@ -1013,12 +1017,13 @@ fn fs_fxpaint(in: VOut) -> @location(0) vec4<f32> {
         let k = min(m * op.p0.x, 1.0) * op.opacity;
         if (k <= 0.0) { return dst; }
         let t = 1.0 - clamp(m, 0.0, 1.0);
-        return composite(op.mode, dst, vec4(lut(0, t), lut(1, t), lut(2, t), lut(3, t) * k), 1.0);
+        return composite_gv(op.mode, dst, vec4(lut(0, t), lut(1, t), lut(2, t), lut(3, t) * k), 1.0, (op.flags & F_TEXT_GAMMA) != 0u, op.p4.x);
     }
     let k = m * op.opacity;
     if (k <= 0.0) { return dst; }
     let c = fx_color(d);
-    return composite(op.mode, dst, vec4(c.rgb, c.a * k), 1.0);
+    // A type layer's exterior effects mix at the text gamma (effects::paint_g).
+    return composite_gv(op.mode, dst, vec4(c.rgb, c.a * k), 1.0, (op.flags & F_TEXT_GAMMA) != 0u, op.p4.x);
 }
 
 // Outside strokes (A = the exterior result before them, B = the layer, C = coverage so far in
@@ -1066,7 +1071,10 @@ fn fs_fxstroke(in: VOut) -> @location(0) vec4<f32> {
             let c = fx_color(d);
             bl = composite(op.mode, base, vec4(c.rgb, c.a), 1.0);
         }
-        acc += share * vec4(bl.rgb * bl.a, bl.a);
+        // Type layers: the shares are mixed in the text blending space (gamma in `p4.w`).
+        var mixed = bl.rgb;
+        if ((op.flags & F_TEXT_GAMMA) != 0u) { mixed = text_enc(bl.rgb, op.p4.w); }
+        acc += share * vec4(mixed * bl.a, bl.a);
     }
     return acc;
 }
@@ -1082,6 +1090,10 @@ fn fs_fxstrokeend(in: VOut) -> @location(0) vec4<f32> {
     let k = 1.0 - min(cover, 1.0);
     let alpha = w.a * k + acc.a;
     if (alpha <= 0.0) { return w; }
+    if ((op.flags & F_TEXT_GAMMA) != 0u) {
+        let g = op.p4.w;
+        return vec4(text_dec((text_enc(w.rgb, g) * w.a * k + acc.rgb) / alpha, g), min(alpha, 1.0));
+    }
     return vec4((w.rgb * w.a * k + acc.rgb) / alpha, min(alpha, 1.0));
 }
 

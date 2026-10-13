@@ -1051,6 +1051,10 @@ impl<'a> Planner<'a> {
             s.emit(p)
         };
 
+        // A type layer's exterior effects mix at the text gamma, as the layer itself does
+        // (`effects::composite_with_effects`).
+        let text_gamma = photocraft_compose::text_gamma(layer);
+        let text_flag = if text_gamma != 1.0 { F_TEXT_GAMMA } else { 0 };
         // Exterior effects over the backdrop (an opaque copy of it for clipped layers).
         let mut w = if atop {
             let b = self.retain(backdrop);
@@ -1061,7 +1065,7 @@ impl<'a> Planner<'a> {
         for &(i, e) in &rev {
             if let Effect::DropShadow(s) = e {
                 // The layer hides the shadow beneath it where its fill is see-through.
-                let flags = if s.knocks_out { F_KNOCKOUT } else { 0 };
+                let flags = if s.knocks_out { F_KNOCKOUT } else { 0 } | text_flag;
                 let see_through = 1.0 - layer.fill_opacity.clamp(0.0, 1.0);
                 w = self.paint_k(
                     w,
@@ -1083,7 +1087,7 @@ impl<'a> Planner<'a> {
                 // Match CPU exterior knockout: a see-through fill must not reveal the
                 // glow through its own shape. The shader applies m × (1 − alpha × k).
                 let see_through = 1.0 - layer.fill_opacity.clamp(0.0, 1.0);
-                w = self.paint_k(w, content, Cov::Map(map(i, 0), 0.0), &paint, g.common.blend, g.common.opacity, F_KNOCKOUT, clip, sb, see_through);
+                w = self.paint_k(w, content, Cov::Map(map(i, 0), 0.0), &paint, g.common.blend, g.common.opacity, F_KNOCKOUT | text_flag, clip, sb, see_through);
             }
         }
 
@@ -1201,7 +1205,8 @@ impl<'a> Planner<'a> {
             }
             for (n, &(i, st)) in outs.iter().enumerate() {
                 let paint = self.fx_paint(&st.paint, anchor);
-                let flags = F_STROKE_OUT | if vector_shape { F_VECTOR } else { 0 } | if outline { F_OUTLINE } else { 0 } | if n == 0 { F_FIRST } else { 0 };
+                let flags =
+                    F_STROKE_OUT | if vector_shape { F_VECTOR } else { 0 } | if outline { F_OUTLINE } else { 0 } | if n == 0 { F_FIRST } else { 0 } | text_flag;
                 // Share × blended colour, then coverage (both read the coverage so far).
                 let mut p = self.fx_pass_kernel(
                     Kernel::FxStroke,
@@ -1220,6 +1225,7 @@ impl<'a> Planner<'a> {
                 }
                 p.adjust_kind = 0;
                 p.map = Some(map(i, 0));
+                p.extra[3] = text_gamma;
                 p.c = cover.map(|c| self.retain(c));
                 p.d = acc;
                 let a = self.emit(p);
@@ -1231,6 +1237,8 @@ impl<'a> Planner<'a> {
                 acc = Some(a);
             }
             let mut p = Pass::new(Kernel::FxStrokeEnd, 0);
+            p.flags |= text_flag;
+            p.extra[3] = text_gamma;
             p.a = Some(w);
             p.b = acc;
             p.c = cover;
@@ -1407,7 +1415,13 @@ impl<'a> Planner<'a> {
             // Missing pattern: compose paints nothing.
             return dst;
         }
+        // Effect paints keep the text gamma in `extra[0]` (`extra[3]` is the knockout); a pattern
+        // paint needs that slot and is mixed plainly, as on the CPU.
+        let flags = if matches!(paint, Paint::Pattern(..)) { flags & !F_TEXT_GAMMA } else { flags };
         let mut p = self.fx_pass(dst, content, paint, blend, opacity, flags, clip, sb);
+        if flags & F_TEXT_GAMMA != 0 {
+            p.extra[0] = photocraft_compose::psblend::text_gamma();
+        }
         self.release(dst);
         match cov {
             Cov::Map(m, outside) => {
