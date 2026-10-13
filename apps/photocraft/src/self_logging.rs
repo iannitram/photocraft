@@ -219,7 +219,10 @@ pub fn window_ready(cc: &eframe::CreationContext<'_>, on_wayland: bool) {
         w.is_maximized()
     ));
     // The size comes from the window itself: egui's `inner_rect` stays empty on Wayland.
-    let window = w.clone();
+    // A weak handle. This hook lives as long as the egui context; a strong handle in it kept the
+    // window alive after the app had closed it, and the program then never ended (the window
+    // stayed on the screen after `app.quit`, every thread asleep, no "run ended:" line).
+    let window = std::sync::Arc::downgrade(w);
     let done = AtomicBool::new(false);
     cc.egui_ctx.on_end_pass(
         "self-logging-window-size",
@@ -227,6 +230,7 @@ pub fn window_ready(cc: &eframe::CreationContext<'_>, on_wayland: bool) {
             if ui.ctx().cumulative_frame_nr() < SIZE_CHECK_FRAME || done.swap(true, Ordering::Relaxed) {
                 return;
             }
+            let Some(window) = window.upgrade() else { return };
             let (inner, scale) = (window.inner_size(), window.scale_factor());
             let got = inner.to_logical::<f64>(scale);
             let line = format!(
