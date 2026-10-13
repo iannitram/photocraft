@@ -87,12 +87,28 @@ pub fn session_text_here() -> String {
     format!("the {} window system", std::env::consts::OS)
 }
 
+/// `base` with one more field in its "system" section, placed after that section's last field
+/// (a field added to a finished report lands at its end, under a second "system" heading).
+fn with_system_field(base: &Report, key: &str, value: &str) -> Report {
+    let last = base.fields().iter().rposition(|f| f.section == "system");
+    let mut r = Report::empty();
+    for (n, f) in base.fields().iter().enumerate() {
+        r.add(&f.section, &f.key, f.value.clone());
+        if Some(n) == last {
+            r.add("system", key, value);
+        }
+    }
+    if last.is_none() {
+        r.add("system", key, value);
+    }
+    r
+}
+
 /// Start-up, once the log file and the window's session are settled and before the window
 /// opens: write the diagnostic report into the log.
 pub fn start_report(settings: Option<&Path>, window_session: &str) {
     let show = |p: Option<&Path>| p.map_or_else(|| craft_log::report::UNKNOWN.to_owned(), |p| mask_home(&p.display().to_string()));
-    let mut r = Report::new(&APP);
-    r.add("system", "the window is on", window_session);
+    let mut r = with_system_field(&Report::new(&APP), "the window is on", window_session);
     r.add("graphics", "adapter", "chosen when the window opens: the \"graphics:\" line after this report");
     r.add("screens", "screens and window", "known when the window opens: the \"screen\" and \"window:\" lines after this report");
     r.add("folders", "settings", show(settings));
@@ -154,12 +170,19 @@ pub fn window_ready(cc: &eframe::CreationContext<'_>, on_wayland: bool) {
         fact("screens: unknown (the window system gave no window handle)".to_owned());
         return;
     };
-    let current = w.current_monitor();
-    let mut screens = 0;
-    for (n, m) in w.available_monitors().enumerate() {
-        screens += 1;
+    let current = w.current_monitor().map(|m| (m.name(), m.size(), m.position()));
+    // The window system may hand out one screen twice (seen on a Wayland handheld: "eDP-1" as
+    // screen 0 and again as screen 1): a screen is one name at one place with one size.
+    let mut seen = Vec::new();
+    for m in w.available_monitors() {
+        let key = (m.name(), m.size(), m.position());
+        if seen.contains(&key) {
+            continue;
+        }
+        let n = seen.len();
+        let here = if current.as_ref() == Some(&key) { "; the window is on it" } else { "" };
+        seen.push(key);
         let (s, scale) = (m.size(), m.scale_factor());
-        let here = if current.as_ref() == Some(&m) { "; the window is on it" } else { "" };
         let rotation = if !on_wayland {
             "rotation already applied by the X server".to_owned()
         } else if turned.contains(&[s.width, s.height]) {
@@ -180,7 +203,7 @@ pub fn window_ready(cc: &eframe::CreationContext<'_>, on_wayland: bool) {
             s.height
         ));
     }
-    if screens == 0 {
+    if seen.is_empty() {
         fact("screens: none reported by the window system".to_owned());
     }
     let (inner, scale) = (w.inner_size(), w.scale_factor());
@@ -236,6 +259,21 @@ pub fn run_ended(in_order: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn what_the_window_is_on_sits_with_the_system_fields() {
+        let mut base = Report::empty();
+        base.add("app", "name", "photocraft");
+        base.add("system", "kernel", "6.18");
+        base.add("system", "locale", "en_US.UTF-8");
+        base.add("memory", "total", "14.8 GiB");
+        let r = with_system_field(&base, "the window is on", "native Wayland");
+        let order: Vec<String> = r.fields().iter().map(|f| format!("{}/{}", f.section, f.key)).collect();
+        assert_eq!(order, ["app/name", "system/kernel", "system/locale", "system/the window is on", "memory/total"]);
+        assert_eq!(r.text().matches("[system]").count(), 1, "{}", r.text());
+        // A report with no system section still gets the field.
+        assert_eq!(with_system_field(&Report::empty(), "the window is on", "X11").get("system", "the window is on"), Some("X11"));
+    }
 
     #[test]
     fn the_control_token_switch_is_named_and_not_shown() {
