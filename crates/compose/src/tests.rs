@@ -1632,8 +1632,7 @@ fn modern_brightness_matches_photoshop() {
         for (i, &x) in xs.iter().enumerate() {
             let got = adjust::modern_brightness(x as f32 / 255.0, b) * 255.0;
             let err = (got - out[i] as f32).abs();
-            // The brightness roll-off is a spline; our fit is close but approximate at the top.
-            assert!(err <= 6.0, "brightness {b} x={x}: got {got:.1} want {} (err {err:.1})", out[i]);
+            assert!(err <= 0.5, "brightness {b} x={x}: got {got:.1} want {} (err {err:.1})", out[i]);
         }
     }
     // Endpoints and the zero slider are exact.
@@ -1641,6 +1640,62 @@ fn modern_brightness_matches_photoshop() {
     assert_eq!(adjust::modern_brightness(1.0, -120.0), 1.0);
     assert_eq!(adjust::modern_brightness(0.37, 0.0), 0.37);
     assert_eq!(adjust::modern_contrast(0.37, 0.0), 0.37);
+}
+
+// Ground truth from Adobe Photoshop 27.11: a 256 x 64 ramp (column x has the grey value x) under a
+// Brightness/Contrast adjustment layer, Use Legacy off, Contrast 0, saved with its merged image and
+// read back from the file. Every one of the eight settings is exact on all 256 levels; the rows
+// below are every 16th level and the steep end of the curve.
+#[test]
+fn modern_brightness_is_exact_at_the_measured_settings() {
+    let xs: [usize; 20] = [0, 16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240, 248, 252, 254, 255];
+    let cases: [(f32, [u8; 20]); 8] = [
+        (-150.0, [0, 6, 12, 19, 25, 31, 37, 44, 50, 56, 63, 71, 79, 90, 106, 131, 156, 183, 214, 255]),
+        (-100.0, [0, 9, 17, 26, 34, 43, 51, 60, 68, 77, 87, 98, 111, 127, 147, 177, 204, 227, 245, 255]),
+        (-50.0, [0, 12, 23, 35, 47, 58, 70, 82, 93, 105, 118, 132, 148, 165, 186, 212, 230, 242, 250, 255]),
+        (-25.0, [0, 14, 27, 41, 55, 68, 82, 96, 109, 123, 137, 152, 167, 183, 202, 224, 238, 247, 252, 255]),
+        (25.0, [0, 19, 37, 56, 75, 94, 112, 131, 150, 168, 185, 201, 216, 229, 240, 249, 252, 254, 255, 255]),
+        (50.0, [0, 22, 44, 66, 88, 110, 132, 152, 171, 188, 203, 217, 228, 238, 246, 251, 254, 254, 255, 255]),
+        (100.0, [0, 30, 60, 90, 120, 149, 173, 193, 209, 222, 232, 240, 245, 249, 252, 253, 254, 255, 255, 255]),
+        (150.0, [0, 41, 82, 124, 162, 193, 214, 229, 239, 245, 249, 251, 253, 254, 254, 255, 255, 255, 255, 255]),
+    ];
+    for (b, out) in cases {
+        for (i, &x) in xs.iter().enumerate() {
+            let got = (adjust::modern_brightness(x as f32 / 255.0, b) * 255.0).round();
+            assert_eq!(got, out[i] as f32, "brightness {b} at level {x}");
+        }
+    }
+}
+
+#[test]
+fn modern_brightness_between_measured_settings_is_ordered_and_bounded() {
+    // More brightness never darkens a level, a setting between two measured ones lies between
+    // their curves, and values outside the slider's range act like its ends.
+    let mut prev = [0.0f32; 256];
+    for step in 0..=300 {
+        let b = step as f32 - 150.0;
+        for (x, last) in prev.iter_mut().enumerate() {
+            let y = adjust::modern_brightness(x as f32 / 255.0, b);
+            assert!((0.0..=1.0).contains(&y), "brightness {b} level {x}: {y}");
+            assert!(step == 0 || y >= *last - 1e-6, "brightness {b} level {x}: {y} under {last}");
+            *last = y;
+        }
+    }
+    for x in [0.1f32, 0.5, 0.9] {
+        assert_eq!(adjust::modern_brightness(x, 400.0), adjust::modern_brightness(x, 150.0));
+        assert_eq!(adjust::modern_brightness(x, -400.0), adjust::modern_brightness(x, -150.0));
+        assert_eq!(adjust::modern_brightness(x, f32::NAN), x);
+    }
+    // Along one curve the output never falls as the input rises (16-bit and float samples land
+    // between the measured levels).
+    for b in [-150.0f32, -35.0, 10.0, 150.0] {
+        let mut last = 0.0f32;
+        for i in 0..=4095 {
+            let y = adjust::modern_brightness(i as f32 / 4095.0, b);
+            assert!(y >= last, "brightness {b} sample {i}");
+            last = y;
+        }
+    }
 }
 
 // Levels ground truth from Adobe Photoshop 2026 (adjustLevels on a 0..255 ramp). Verifies our
