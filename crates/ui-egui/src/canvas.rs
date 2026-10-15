@@ -1620,6 +1620,8 @@ fn ensure_gpu(app: &mut PhotocraftApp, ctx: &egui::Context, idx: usize, visible:
     // draws it (checked before the memory budget, which walks the history, every frame).
     if !gpu.fits_canvas(&doc) {
         crate::background_redraw::cancel(app, id);
+        let (bytes, budget) = gpu.canvas_cost(&doc);
+        crate::self_logging::canvas_over_budget(doc.size.width, doc.size.height, bytes, budget);
         return false;
     }
     let partial = present && damage.is_some();
@@ -1645,7 +1647,7 @@ fn ensure_gpu(app: &mut PhotocraftApp, ctx: &egui::Context, idx: usize, visible:
     if let Some(e) = &r.fallback
         && app.perf.gpu_fallback.as_deref() != Some(e.as_str())
     {
-        log::info!("{e}; using the CPU compositor");
+        log::warn!("decision: gpu.canvas: {e}; using the CPU compositor (a {} x {} document, GPU memory budget {} MiB)", doc.size.width, doc.size.height, app.perf.gpu_budget_mb);
     }
     if r.kind != crate::gpu_canvas::REFRESH_DEFERRED {
         app.perf.record(r.kind, r.px, r.composite_ms, r.upload_ms);
