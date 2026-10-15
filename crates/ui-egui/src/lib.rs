@@ -425,6 +425,10 @@ pub type CursorPosFn = Box<dyn FnMut(&egui::Context) -> Option<egui::Pos2>>;
 /// Whether Caps Lock is toggled on, read from the OS. `None` where the platform cannot
 /// report it (native Wayland): the cursor then follows the cursor preference (#1758).
 pub type CapsLockFn = Box<dyn FnMut() -> bool>;
+/// Files dropped onto the window on native Wayland since the last call, each drop with where it
+/// landed (window points), from a listener of its own (winit 0.30 delivers none there). Dropping
+/// the service stops the listener.
+pub type WaylandDropsFn = Box<dyn FnMut() -> Vec<(Vec<std::path::PathBuf>, Option<egui::Pos2>)>>;
 /// Keeps an undecorated window's OS frame from offsetting its content and pointer (#2246).
 /// Called once per frame; `None` when the window is decorated or the platform needs no fixing.
 pub type WindowFrameFn = Box<dyn FnMut()>;
@@ -482,6 +486,9 @@ pub struct Services {
     pub system_theme: Option<SystemThemeFn>,
     /// The native window is connected directly to a Wayland compositor.
     pub is_wayland: bool,
+    /// File drops on native Wayland (`None` elsewhere, or when the listener could not start: then
+    /// the window says how else to open files, `notices::wayland_file_drop_guidance`).
+    pub wayland_drops: Option<WaylandDropsFn>,
     /// On Wayland, the shell command that starts this install under XWayland, where native file
     /// drops work (#386); `None` when there is no X server to run it on.
     pub xwayland_command: Option<String>,
@@ -1770,6 +1777,8 @@ impl PhotocraftApp {
 
 impl eframe::App for PhotocraftApp {
     fn on_exit(&mut self) {
+        // The Wayland drop listener uses winit's connection: it stops here, before winit closes it.
+        self.services.wayland_drops = None;
         if let Err(err) = tool_memory::save_on_exit(self) {
             log::warn!("Preferences: could not save the final tool selection: {err}");
         }
@@ -1851,6 +1860,13 @@ impl eframe::App for PhotocraftApp {
             self.open_dropped(ctx, dropped, at);
             // Files dragged in from another app's window: PhotoCraft comes to the front and takes
             // the keyboard, as Photoshop does, instead of staying behind the source (#5687).
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        }
+        // Native Wayland: winit delivers no drops, the listener does; same routing as above.
+        let wayland = self.services.wayland_drops.as_mut().map(|poll| poll()).unwrap_or_default();
+        for (paths, at) in wayland {
+            let files = paths.into_iter().map(|p| std::sync::Arc::new(file_open::PathDrop(p)) as egui::DroppedFileHandle).collect();
+            self.open_dropped(ctx, files, at);
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         }
         self.place_next_dropped(ctx);

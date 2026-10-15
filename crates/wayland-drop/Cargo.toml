@@ -1,0 +1,24 @@
+[package]
+name = "photocraft-wayland-drop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Files dropped onto a winit window on Wayland (winit 0.30 delivers none), read on winit's own connection"
+
+# An isolated `unsafe` helper crate, as photocraft-tablet is: adopting winit's Wayland connection
+# takes one `unsafe` call (`Backend::from_foreign_display`, `src/linux.rs`, with its safety
+# argument there). Everything else is denied, and every other crate keeps the workspace's
+# `unsafe_code = "forbid"`.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+
+# Already in Cargo.lock (winit and smithay-clipboard pull them in, with the same features); pinned
+# exactly: review the diff before bumping.
+[target.'cfg(target_os = "linux")'.dependencies]
+wayland-client = "=0.31.15"
+wayland-backend = { version = "=0.3.17", default-features = false, features = ["client_system"] }
+rustix = { version = "=1.1.5", default-features = false, features = ["std", "event"] }

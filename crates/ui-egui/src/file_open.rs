@@ -74,6 +74,24 @@ fn with_missing_fonts_when(doc: &photocraft_doc::Document, mut warnings: Vec<Str
     warnings
 }
 
+/// A file dropped by path outside egui (the native Wayland listener, `Services::wayland_drops`).
+#[derive(Debug)]
+pub struct PathDrop(pub std::path::PathBuf);
+
+impl egui::DroppedFile for PathDrop {
+    fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    fn bytes(&self) -> Result<Vec<u8>, String> {
+        std::fs::read(&self.0).map_err(|e| e.to_string())
+    }
+    #[cfg(target_arch = "wasm32")]
+    fn bytes_async(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + '_>> {
+        Box::pin(async { Err("no file system".to_string()) })
+    }
+}
+
 /// A dropped file's name ("dropped" when it has none).
 fn dropped_name(f: &egui::DroppedFileHandle) -> String {
     f.path().file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "dropped".into())

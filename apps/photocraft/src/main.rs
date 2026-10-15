@@ -54,6 +54,9 @@ mod ui_state;
 // Pure logic is tested on every platform; only Linux asks the compositor.
 #[cfg(any(target_os = "linux", test))]
 mod wayland_outputs;
+// Files dropped on native Wayland (winit 0.30 delivers none there).
+#[cfg(target_os = "linux")]
+mod wayland_drop;
 mod window_frame;
 
 use photocraft_engine::Session;
@@ -410,6 +413,7 @@ fn main() -> eframe::Result {
                     let turned = wayland_outputs::quarter_turned_modes_now();
                     self_logging::turned_screens(&turned);
                     photocraft_ui_egui::work_area::set_quarter_turned_modes(&cc.egui_ctx, turned);
+                    services.wayland_drops = wayland_drop::service(cc);
                 }
             }
             self_logging::window_ready(cc, cfg!(target_os = "linux") && window_on_wayland);

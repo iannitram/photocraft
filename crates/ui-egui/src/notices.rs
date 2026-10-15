@@ -68,7 +68,10 @@ pub(crate) fn paste_hint(app: &PhotocraftApp) -> String {
 /// 0.30 delivers no file drops on Wayland, so point at File › Open, pasting a copied file, and the
 /// command that starts this install under XWayland (where drops work), when there is one.
 pub fn wayland_file_drop_guidance(app: &mut PhotocraftApp) {
+    // Drops work through the app's own listener when it started (`Services::wayland_drops`): no
+    // guidance then.
     if !app.services.is_wayland
+        || app.services.wayland_drops.is_some()
         || app.session.prefs().dialogs.get(WAYLAND_FILE_DROP_DISMISSED).and_then(serde_json::Value::as_bool) == Some(true)
         || app.ui.notices.iter().any(|notice| notice.dismiss_pref.as_deref() == Some(WAYLAND_FILE_DROP_DISMISSED))
     {
