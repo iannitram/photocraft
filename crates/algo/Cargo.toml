@@ -15,6 +15,8 @@ photocraft-color = { workspace = true }
 photocraft-raster = { workspace = true }
 serde = { workspace = true }
 rustfft = "6.4.1"
+# One `decision:` line when a cut is handed from one max-flow solver to the other (segment/mod.rs).
+log = { workspace = true }
 
 # Parallel tiles on native; wasm builds stay single-threaded.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
