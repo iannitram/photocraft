@@ -669,6 +669,64 @@ fn select_subject_cancelled_in_the_band_recut_reads_no_more_tiles() {
     assert_eq!(s.1.load(SeqCst), 1, "tiles read after the cancel");
 }
 
+/// Two panels side by side (a split screen) have a seam through the whole height; a still with a
+/// subject in it does not.
+#[test]
+fn a_split_frame_is_told_from_a_still() {
+    let (w, h) = (200usize, 120usize);
+    let mut rng = Rng::new(31);
+    let mut img = RgbImage::new(w, h);
+    for y in 0..h {
+        for x in 0..w {
+            let base = if x < 96 { [0.25, 0.22, 0.20] } else { [0.62, 0.66, 0.70] };
+            let n = 0.02 * rng.normal();
+            img.px[y * w + x] = base.map(|v: f32| (v + n).clamp(0.0, 1.0));
+        }
+    }
+    assert!(subject::has_vertical_split(&img), "two panels");
+    let (still, _) = bust_scene(240, 180, 21);
+    assert!(!subject::has_vertical_split(&still), "a head and shoulders on a set");
+    let (disc, _) = disc_scene(200, 150, 100.0, 75.0, 40.0, 7);
+    assert!(!subject::has_vertical_split(&disc), "a disc on a plain ground");
+}
+
+/// The guard of the open bottom: a selection of 90 % or more of the picture made with the bottom
+/// open is redone with the bottom read as background; less, or made with the bottom closed, stands.
+#[test]
+fn an_open_bottom_selection_of_nearly_everything_is_redone() {
+    let sel = |on: usize| (0..100).map(|i| i < on).collect::<Vec<bool>>();
+    assert!(subject::open_bottom_took_too_much(&sel(96), subject::NOT_BOTTOM));
+    assert!(subject::open_bottom_took_too_much(&sel(90), subject::NOT_BOTTOM));
+    assert!(!subject::open_bottom_took_too_much(&sel(89), subject::NOT_BOTTOM));
+    assert!(!subject::open_bottom_took_too_much(&sel(96), subject::ALL_SIDES), "the bottom was background already");
+    assert!(!subject::open_bottom_took_too_much(&[], subject::NOT_BOTTOM));
+}
+
+/// A mark on a backdrop that runs into the bottom edge (a logo on a top-to-bottom gradient): with
+/// the bottom open the backdrop could be taken whole; the selection stays the mark. (This made-up
+/// picture is cut right with or without the guard above; Ian's psd-2dea52 was not.)
+#[test]
+fn a_logo_on_a_gradient_is_not_taken_with_its_backdrop() {
+    let (w, h) = (160usize, 160usize);
+    let mut rng = Rng::new(41);
+    let mut img = RgbImage::new(w, h);
+    let mut truth = vec![false; w * h];
+    for y in 0..h {
+        for x in 0..w {
+            let logo = (55..105).contains(&x) && (55..105).contains(&y);
+            truth[y * w + x] = logo;
+            let g = 0.35 + 0.45 * y as f32 / h as f32;
+            let base = if logo { [0.10, 0.18, 0.55] } else { [g, g, g] };
+            let n = 0.015 * rng.normal();
+            img.px[y * w + x] = base.map(|v: f32| (v + n).clamp(0.0, 1.0));
+        }
+    }
+    let s = ImageSampler { img: &img, origin: (0, 0) };
+    let reg = subject::select_subject(&s, Rect::new(0, 0, w as i32, h as i32)).unwrap();
+    let v = iou(&reg, &truth, w, h);
+    assert!(v > 0.8, "IoU {v}");
+}
+
 /// A lit face over dark clothes that leave the picture through its bottom edge, on a dark set:
 /// (image, ground truth = head and body).
 fn bust_scene(w: usize, h: usize, seed: u64) -> (RgbImage, Vec<bool>) {
