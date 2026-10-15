@@ -864,6 +864,22 @@ fn saving_a_new_document_lists_it_in_recent_files() {
     assert_eq!(app.ui.recent_files, ["/pics/new.psd"], "a copy isn't the document's file");
 }
 
+/// While the start-up font scan runs, the open-time check adds nothing and reads no font (it
+/// would wait for the scan on the UI thread); the deferred notice says it later. Once the fonts
+/// are ready it warns as #4559 does.
+#[test]
+fn the_missing_font_check_waits_for_no_font_scan() {
+    let mut s = photocraft_engine::Session::new();
+    s.execute("file.new", json!({"width": 40, "height": 20})).unwrap();
+    s.execute("type.create", json!({"text": "Hi", "x": 2, "y": 12, "size": 10, "font": "NoSuchFamilyScan"})).unwrap();
+    let doc = (*s.active().unwrap().doc).clone();
+    let given = vec!["from the importer".to_string()];
+    assert_eq!(with_missing_fonts_when(&doc, given.clone(), false), given, "nothing added while the scan runs");
+    let ready = with_missing_fonts_when(&doc, given.clone(), true);
+    assert_eq!(ready.len(), 2, "{ready:?}");
+    assert!(ready[1].contains("NoSuchFamilyScan"), "{ready:?}");
+}
+
 /// #4559: a file whose type uses a font that isn't installed opens with a notice naming it, as
 /// Photoshop warns on open (the CLI and automation already did); the file still opens. Type in
 /// an installed face adds nothing, and a font the importer already warned about isn't repeated.

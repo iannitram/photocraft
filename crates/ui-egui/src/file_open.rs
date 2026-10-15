@@ -45,7 +45,27 @@ pub(crate) fn with_missing_fonts(app: &PhotocraftApp, warnings: Vec<String>) -> 
 
 /// [`with_missing_fonts`] for `doc` itself: a file held back for its profile prompt
 /// (`open_prompt`) isn't the active document yet.
-pub(crate) fn with_missing_fonts_of(doc: &photocraft_doc::Document, mut warnings: Vec<String>) -> Vec<String> {
+///
+/// The check needs the installed fonts, and the first look at them waits for the start-up font
+/// scan: a file opened while it runs (a file given on the command line, or opened in the first
+/// seconds) would freeze the window until it ends. So while the scan runs the warnings are left
+/// as they are, and [`fonts_ready`] tells the caller to queue the deferred notice instead
+/// (`missing_font_prompt::document_opened`, posted once the scan is done).
+pub(crate) fn with_missing_fonts_of(doc: &photocraft_doc::Document, warnings: Vec<String>) -> Vec<String> {
+    with_missing_fonts_when(doc, warnings, fonts_ready())
+}
+
+/// Whether the installed fonts can be read without waiting for the start-up scan.
+pub(crate) fn fonts_ready() -> bool {
+    photocraft_text::try_shared().is_some()
+}
+
+/// [`with_missing_fonts_of`] with the scan's state given: `ready` false adds nothing and does not
+/// touch the font database.
+fn with_missing_fonts_when(doc: &photocraft_doc::Document, mut warnings: Vec<String>, ready: bool) -> Vec<String> {
+    if !ready {
+        return warnings;
+    }
     for w in photocraft_engine::type_extra_cmds::missing_font_warnings(doc) {
         if !warnings.contains(&w) {
             warnings.push(w);
