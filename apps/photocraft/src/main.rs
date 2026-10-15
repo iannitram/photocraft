@@ -53,6 +53,9 @@ mod ui_state;
 // Pure logic is tested on every platform; only Linux asks the compositor.
 #[cfg(any(target_os = "linux", test))]
 mod wayland_outputs;
+// Files dropped on native Wayland (winit 0.30 delivers none there).
+#[cfg(target_os = "linux")]
+mod wayland_drop;
 mod window_frame;
 
 use photocraft_engine::Session;
@@ -395,6 +398,7 @@ fn main() -> eframe::Result {
                     // winit reports a panel shown turned a quarter by its unturned size: tell the
                     // work area, so a window too tall for the real desktop is maximized.
                     photocraft_ui_egui::work_area::set_quarter_turned_modes(&cc.egui_ctx, wayland_outputs::quarter_turned_modes_now());
+                    services.wayland_drops = wayland_drop::service(cc);
                 }
             }
             let mut app = PhotocraftApp::new(Session::new(), services);
