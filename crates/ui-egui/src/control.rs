@@ -1229,6 +1229,9 @@ fn dispatch(app: &mut PhotocraftApp, ctx: &egui::Context, req: &ControlRequest) 
                             // replaces files, never directories.
                             app.push_recent(path);
                             app.sync_views();
+                            // Its missing fonts get the same notice as a file through the bytes
+                            // path (`import_automation_document`).
+                            crate::missing_font_prompt::document_opened(app);
                             app.ui.status = crate::i18n::fmt(tl!("Opened {name}"), &[("name", &name)]);
                             app.ui.status_error = false;
                             return ok(json!({"path": path, "name": name, "warnings": []}));
@@ -2514,6 +2517,28 @@ mod tests {
         // A real opener error propagates instead of being masked by the fallback.
         let r = call(&mut app, &ctx, "app.open", json!({"path": "gone.pcraft"}));
         assert!(r["error"].as_str().unwrap().contains("corrupt bundle"), "{r}");
+    }
+
+    /// A directory .pcraft opened by automation whose type uses a font that isn't installed gets
+    /// the missing-font notice, as a file opened through the bytes path does.
+    #[test]
+    fn app_open_of_a_directory_pcraft_names_its_missing_fonts() {
+        use serde_json::json;
+        let mut s = photocraft_engine::Session::new();
+        s.execute("file.new", json!({"width": 40, "height": 20})).unwrap();
+        s.execute("type.create", json!({"text": "Hi", "x": 2, "y": 12, "size": 10, "font": "NoSuchFamilyPcraftDir"})).unwrap();
+        let doc = (*s.active().unwrap().doc).clone();
+        let services = crate::Services {
+            automation_open_pcraft: Some(Box::new(move |_path: &str| Ok(Some(("poster.pcraft".to_string(), doc.clone()))))),
+            ..Default::default()
+        };
+        let mut app = PhotocraftApp::new(photocraft_engine::Session::new(), services);
+        let ctx = egui::Context::default();
+        let r = call(&mut app, &ctx, "app.open", json!({"path": "poster.pcraft"}));
+        assert_eq!(r["ok"], true, "{r}");
+        assert_eq!(app.ui.notices.len(), 1, "{:?}", app.ui.notices.iter().map(|n| &n.title).collect::<Vec<_>>());
+        assert_eq!(app.ui.notices[0].title, "Fonts used in this document are not installed");
+        assert!(app.ui.notices[0].lines.iter().any(|l| l.contains("NoSuchFamilyPcraftDir")), "{:?}", app.ui.notices[0].lines);
     }
 
     #[test]
