@@ -255,6 +255,14 @@ impl GpuCanvas {
         r.callback_resources.get::<Resources>().is_some_and(|res| bytes <= res.canvas_budget)
     }
 
+    /// self-logging: the display texture bytes `doc` needs and the budget [`GpuCanvas::fits_canvas`] holds them to.
+    pub fn canvas_cost(&self, doc: &photocraft_doc::Document) -> (u64, u64) {
+        let size = [doc.size.width, doc.size.height];
+        let bytes = canvas_texture_bytes(size, self.tile, texel_bytes(self.format_for(doc.depth, size)));
+        let r = self.rs.renderer.read();
+        (bytes, r.callback_resources.get::<Resources>().map_or(0, |res| res.canvas_budget))
+    }
+
     /// Cap lower-stack composite reuse; zero disables it for profiling the uncached path.
     pub fn set_composite_cache_budget(&self, bytes: u64) {
         let mut r = self.rs.renderer.write();

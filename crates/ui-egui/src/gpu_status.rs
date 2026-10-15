@@ -71,6 +71,7 @@ pub fn system_info_ui(app: &PhotocraftApp) -> Vec<String> {
     }];
     v.extend(app.perf.gpu_info.lines());
     v.extend(crate::monitor_status::summary_lines(app));
+    v.extend(crate::self_logging::system_info_lines());
     v
 }
 

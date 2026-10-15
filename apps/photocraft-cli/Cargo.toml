@@ -29,6 +29,8 @@ photocraft-io = { workspace = true }
 photocraft-format = { path = "../../crates/format" }
 photocraft-codecs = { workspace = true }
 serde_json = { workspace = true }
+# Self-logging (ours, never offered upstream): the command-line log file and the `log:` line.
+craft-log = { path = "../../crates/craft-log" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 [build-dependencies]
