@@ -151,7 +151,9 @@ fn the_token_serve_makes_up_is_not_logged_when_the_port_is_taken() {
     // The person who started it still sees the token, as upstream prints it.
     assert!(holds_a_token(&text(&o.stderr)), "{}", text(&o.stderr));
     let log = std::fs::read_to_string(log_of(&settings)).unwrap();
-    assert!(log.contains("photocraft-cli control token: ***") && log.contains("Address already in use"), "{log}");
+    // The bind error as each OS words it (Linux and macOS; Windows, os error 10048).
+    let bind_failed = log.contains("Address already in use") || log.contains("Only one usage of each socket address");
+    assert!(log.contains("photocraft-cli control token: ***") && bind_failed, "{log}");
     no_token_in_the_logs(&settings);
     let _ = std::fs::remove_dir_all(&d);
 }
