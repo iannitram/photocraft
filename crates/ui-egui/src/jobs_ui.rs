@@ -575,6 +575,11 @@ pub(crate) fn after_open(app: &mut PhotocraftApp, name: &str, path: Option<&str>
     }
     app.sync_views();
     // Fonts the document's type uses that aren't installed join the import warnings (#4559).
+    // While the start-up font scan runs that check would block the window: the document is
+    // queued for the missing-font notice instead, posted once the scan is done.
+    if !crate::file_open::fonts_ready() {
+        crate::missing_font_prompt::document_opened(app);
+    }
     let warnings = crate::file_open::with_missing_fonts(app, warnings.to_vec());
     let warnings = warnings.as_slice();
     let opened = crate::i18n::fmt(tl!("Opened {name}"), &[("name", name)]);
@@ -588,7 +593,7 @@ pub(crate) fn after_open(app: &mut PhotocraftApp, name: &str, path: Option<&str>
         notices::io_warnings(app, &opened, warnings);
     }
     // Missing fonts: upstream's warning above (#4559) says it as the file opens; ours' notice
-    // would say it a second time.
+    // would say it a second time, so ours is queued only while the font scan runs (see above).
     // Script events bound to "Open Document".
     photocraft_engine::automate_cmds::document_opened(&mut app.session);
     app.sync_views();
