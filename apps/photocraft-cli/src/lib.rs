@@ -174,7 +174,7 @@ pub fn run(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
             return 0;
         }
         "--version" | "version" => {
-            let _ = writeln!(out, "photocraft-cli {}", photocraft_engine::build_info::long_version());
+            let _ = writeln!(out, "photocraft-cli {}", selflog::version_text());
             return 0;
         }
         _ => {}

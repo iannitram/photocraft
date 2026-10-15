@@ -47,9 +47,9 @@ mod photoshop_settings;
 mod screen_color;
 mod services;
 // Windows gets pen pressure from winit (WM_POINTER); the web runner has its own listener.
+mod self_logging;
 #[cfg(any(target_os = "macos", target_os = "linux", test))]
 mod tablet;
-mod self_logging;
 mod ui_state;
 // Pure logic is tested on every platform; only Linux asks the compositor.
 #[cfg(any(target_os = "linux", test))]
@@ -217,7 +217,7 @@ fn main() -> eframe::Result {
             Some("--safe-gpu") => safe_gpu = true,
             Some("--in-window-menus") => in_window_menus = true,
             Some("--version") => {
-                println!("photocraft {}", photocraft_engine::build_info::long_version());
+                println!("photocraft {}", self_logging::version_text());
                 return Ok(());
             }
             // Old macOS passes a process serial number when launched from Finder.
