@@ -262,9 +262,17 @@ pub fn grid_cut_cancellable(
 /// 2.4 → 1.2 s. The narrow edge-band cuts of [`finish_region`] (Quick Selection's too) and
 /// Content-Aware Fill's seam stay on the automatic choice, which is faster for them.
 ///
-/// `cancel` is checked before the solve (`None` when it says stop); Boykov–Kolmogorov has no
-/// cancel point inside, so a cancel waits for the cut under way.
-pub(crate) fn grid_cut_bk(img: &RgbImage, cost_fg: &[f32], cost_bg: &[f32], fixed: &[u8], gamma: f32, beta: f32, cancel: &dyn Fn() -> bool) -> Option<Vec<bool>> {
+/// `cancel` is checked before the solve and inside it (Boykov–Kolmogorov asks every 1024 steps):
+/// `None` when it says stop, so a cancel does not wait for the cut under way.
+pub(crate) fn grid_cut_bk(
+    img: &RgbImage,
+    cost_fg: &[f32],
+    cost_bg: &[f32],
+    fixed: &[u8],
+    gamma: f32,
+    beta: f32,
+    cancel: &dyn Fn() -> bool,
+) -> Option<Vec<bool>> {
     grid_cut_impl::<true>(img, cost_fg, cost_bg, fixed, |d2| gamma * (-beta * d2).exp(), cancel, Solver::Bk)
 }
 
@@ -452,8 +460,8 @@ fn grid_cut_impl<const OPTIMIZED: bool>(
     if OPTIMIZED && solver == Solver::Auto {
         g.maxflow_with(cancel)?;
     } else if OPTIMIZED {
-        // Boykov–Kolmogorov by name: the redo of a cut that ran out of steps. It asks too, so a
-        // cancel after the hand-over still cancels.
+        // Boykov–Kolmogorov by name: GrabCut's working-resolution cuts (`grid_cut_bk`) and the
+        // redo of a cut that ran out of steps. It asks too, so a cancel stops either mid-solve.
         g.maxflow_bk_with(cancel)?;
     } else {
         g.maxflow_bk();
