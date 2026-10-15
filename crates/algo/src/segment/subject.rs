@@ -25,8 +25,9 @@
 //!    background's, so a patch of backdrop enclosed by the subject (between an arm and the
 //!    torso) stays open; specks still fill. Then the mask is re-cut at full resolution.
 //! 7. The bottom side of the picture is not read as background, in the boundary connectivity of
-//!    step 2, the trimap of step 4 or the backdrop's frame in step 5: the subject of a still often
-//!    leaves the frame through it, while a floor or a table reaches a left or right side too.
+//!    step 2 or in the trimap of step 4: the subject of a still often leaves the frame through it,
+//!    while a floor or a table reaches a left or right side too. (The backdrop pass of step 5
+//!    keeps every side: it leaves out the frame near the subject anyway.)
 //! 8. Off unless asked for ([`Portrait`], through [`select_subject_tuned`]), between steps 4
 //!    and 5: when the selection
 //!    so far reads as a face (skin tone in three tenths of it or more), a second GrabCut is
@@ -165,7 +166,7 @@ pub fn select_subject_tuned_with(sampler: &dyn Sampler, canvas: Rect, tune: &Sub
         }
     }
     craft_stage::stage("backdrop");
-    let (low, fg, bg) = backdrop_pass(&img, &low, tune.bg_sides, ctl)?.unwrap_or((low, fg, bg));
+    let (low, fg, bg) = backdrop_pass(&img, &low, ctl)?.unwrap_or((low, fg, bg));
     ctl.check()?;
     craft_stage::stage("fill-holes");
     let low = super::fill_holes_by_model(&low, &img, &fg, &bg, 0.002, 0.05);
@@ -237,13 +238,13 @@ fn first_trimap(sal: &[f32], t: f32, w: usize, h: usize, sides: u8) -> Vec<u8> {
 }
 
 /// Step 5: GrabCut again with a background model that only knows the backdrop. A colour model
-/// is fitted to the image's frame (its `sides` only) (the outer pixels, minus a margin around `blob` in case the
+/// is fitted to the image's frame (the outer pixels, minus a margin around `blob` in case the
 /// subject runs out of the picture); the frame is definite background, every other pixel it
 /// explains well is probable background, and the rest (the blob, and anything the backdrop
 /// cannot account for, such as a cream shirt on a near-white wall) starts as probable
 /// foreground. `Ok(None)` when the frame cannot be modelled or the cut keeps nothing that
 /// touches the blob; `Err(Cancelled)` once `ctl` is cancelled, as in the first pass.
-fn backdrop_pass(img: &super::RgbImage, blob: &[bool], sides: u8, ctl: &Interrupt) -> Result<Option<(Vec<bool>, Gmm, Gmm)>, Cancelled> {
+fn backdrop_pass(img: &super::RgbImage, blob: &[bool], ctl: &Interrupt) -> Result<Option<(Vec<bool>, Gmm, Gmm)>, Cancelled> {
     let (w, h) = (img.w, img.h);
     let (mut x0, mut y0, mut x1, mut y1) = (w, h, 0usize, 0usize);
     for (i, on) in blob.iter().enumerate() {
@@ -259,10 +260,7 @@ fn backdrop_pass(img: &super::RgbImage, blob: &[bool], sides: u8, ctl: &Interrup
     let (bx0, by0) = (x0.saturating_sub(margin), y0.saturating_sub(margin));
     let (bx1, by1) = ((x1 + margin).min(w - 1), (y1 + margin).min(h - 1));
     let frame = ((w.min(h) as f32 * 0.06).round() as usize).max(2);
-    // Only the chosen sides ([`SubjectTuning::bg_sides`]) are frame, as in steps 2 and 4.
-    let in_frame = |x: usize, y: usize| {
-        (y < frame && sides & 1 != 0) || (x + frame >= w && sides & 2 != 0) || (y + frame >= h && sides & 4 != 0) || (x < frame && sides & 8 != 0)
-    };
+    let in_frame = |x: usize, y: usize| x < frame || y < frame || x + frame >= w || y + frame >= h;
     let near_blob = |x: usize, y: usize| (bx0..=bx1).contains(&x) && (by0..=by1).contains(&y);
     let samples: Vec<[f32; 3]> = (0..w * h).filter(|i| in_frame(i % w, i / w) && !near_blob(i % w, i / w)).map(|i| img.px[i]).collect();
     let Some(backdrop) = Gmm::fit(&super::subsample(&samples, 40_000), grabcut::K, super::gmm::DEFAULT_REG) else { return Ok(None) };
