@@ -75,6 +75,38 @@ impl Encoding {
     }
 }
 
+/// `linear_to_srgb(srgb_to_linear(v) * gain)` for one channel, tabulated over 0..1 at
+/// [`GainCurve::STEPS`] intervals and read with linear interpolation: within 4e-6 of the exact
+/// curve (the test checks it), under a quarter of one 16-bit step (1.5e-5), so a committed
+/// 16-bit result is unchanged. Values outside 0..1 (float documents) are computed exactly.
+struct GainCurve {
+    gain: f32,
+    table: Vec<f32>,
+}
+
+impl GainCurve {
+    const STEPS: usize = 65536;
+
+    fn exact(gain: f32, v: f32) -> f32 {
+        linear_to_srgb((srgb_to_linear(v) * gain).max(0.0))
+    }
+
+    fn new(gain: f32) -> Self {
+        let table = crate::photo_util::par_map(Self::STEPS + 1, |i| Self::exact(gain, i as f32 / Self::STEPS as f32));
+        GainCurve { gain, table }
+    }
+
+    fn eval(&self, v: f32) -> f32 {
+        if !(0.0..=1.0).contains(&v) {
+            return Self::exact(self.gain, v);
+        }
+        let x = v * Self::STEPS as f32;
+        let i = (x as usize).min(Self::STEPS - 1);
+        let t = x - i as f32;
+        self.table[i] + (self.table[i + 1] - self.table[i]) * t
+    }
+}
+
 fn srgb_encode(v: f32) -> f32 {
     linear_to_srgb(v)
 }
@@ -590,13 +622,27 @@ pub fn develop(px: &mut [[f32; 4]], w: usize, h: usize, p: &CameraRaw, float: bo
         let mut g = white_balance_gains(p.temperature, p.tint);
         let norm = luma(g);
         g = g.map(|v| v / norm * 2f32.powf(p.exposure));
-        par_rows(px, w, 1, |_, row| {
-            for q in row.iter_mut() {
-                for c in 0..3 {
-                    q[c] = linear_to_srgb((srgb_to_linear(q[c]) * g[c]).max(0.0));
+        // Each channel's whole curve `encode(decode(v) * gain)` is fixed for this call. On an image
+        // larger than the table, tabulate it once (in parallel) and interpolate, instead of two
+        // `powf` per channel per pixel; a small preview keeps the direct formula.
+        if px.len() > GainCurve::STEPS {
+            let curves = g.map(GainCurve::new);
+            par_rows(px, w, 1, |_, row| {
+                for q in row.iter_mut() {
+                    for c in 0..3 {
+                        q[c] = curves[c].eval(q[c]);
+                    }
                 }
-            }
-        });
+            });
+        } else {
+            par_rows(px, w, 1, |_, row| {
+                for q in row.iter_mut() {
+                    for c in 0..3 {
+                        q[c] = GainCurve::exact(g[c], q[c]);
+                    }
+                }
+            });
+        }
     }
     // 2. Dehaze.
     if p.dehaze != 0.0 {
@@ -990,6 +1036,51 @@ fn vignette(px: &mut [[f32; 4]], w: usize, h: usize, p: &CameraRaw) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The tabulated exposure and white-balance curve stays within a quarter of a 16-bit step of
+    /// the exact formula everywhere in 0..1, at the sRGB curve's joint included, for gains from
+    /// Exposure -5 to +5; values outside 0..1 are exact.
+    #[test]
+    fn the_tabulated_gain_curve_matches_the_exact_one() {
+        for stops in [-5.0f32, -1.0, -0.3, 0.25, 1.0, 5.0] {
+            for gain in [2f32.powf(stops), 2f32.powf(stops) * 0.8, 2f32.powf(stops) * 1.3] {
+                let curve = GainCurve::new(gain);
+                let mut worst = 0.0f32;
+                for i in 0..=200_000 {
+                    let v = i as f32 / 200_000.0;
+                    worst = worst.max((curve.eval(v) - GainCurve::exact(gain, v)).abs());
+                }
+                for v in [0.04045f32, 0.040_449, 0.040_451, 0.0, 1.0] {
+                    worst = worst.max((curve.eval(v) - GainCurve::exact(gain, v)).abs());
+                }
+                assert!(worst < 4e-6, "gain {gain}: {worst}");
+                for v in [-0.5f32, 1.5, 4.0] {
+                    assert_eq!(curve.eval(v), GainCurve::exact(gain, v));
+                }
+            }
+        }
+    }
+
+    /// An image above the table's size (the tabulated path) develops the same as the exact
+    /// formula to within the same tolerance.
+    #[test]
+    fn exposure_on_a_large_image_matches_the_exact_formula() {
+        let (w, h) = (300, 250);
+        let src: Vec<[f32; 4]> = (0..w * h).map(|i| [(i % 997) as f32 / 996.0, (i % 389) as f32 / 388.0, (i % 61) as f32 / 60.0, 1.0]).collect();
+        assert!(src.len() > GainCurve::STEPS);
+        let p = CameraRaw { exposure: 0.7, temperature: 12.0, ..Default::default() };
+        let mut px = src.clone();
+        develop(&mut px, w, h, &p, false);
+        let mut g = white_balance_gains(p.temperature, p.tint);
+        let norm = luma(g);
+        g = g.map(|v| v / norm * 2f32.powf(p.exposure));
+        for (q, s) in px.iter().zip(&src) {
+            for c in 0..3 {
+                // A non-float develop ends clipped to 0..1.
+                assert!((q[c] - GainCurve::exact(g[c], s[c]).clamp(0.0, 1.0)).abs() < 4e-6, "{q:?} {s:?}");
+            }
+        }
+    }
 
     #[test]
     fn new_curves_are_validated_but_saved_curves_still_load_and_render() {
