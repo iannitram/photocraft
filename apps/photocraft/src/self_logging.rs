@@ -43,7 +43,16 @@ pub fn install() -> Option<&'static AppLogger> {
     // here keeps it compiled and warning-free without editing their file.
     let _upstream: fn() -> Option<&'static AppLogger> = logging::install;
     let inner = INNER.get_or_init(|| AppLogger::new(filter, true));
+    // Windows has no /proc/meminfo: the report asks the system through winsafe instead.
+    #[cfg(windows)]
+    craft_log::report::set_memory_reader(windows_memory);
     craft_log::install_wrapped(&APP, inner, max).then_some(inner)
+}
+
+/// (total, available) physical memory in bytes (`GlobalMemoryStatusEx`), for the report.
+#[cfg(windows)]
+fn windows_memory() -> Option<(u64, u64)> {
+    winsafe::GlobalMemoryStatusEx().ok().map(|m| (m.ullTotalPhys, m.ullAvailPhys))
 }
 
 /// The log directory is known: record the log file's path for the lines that point at it.
