@@ -43,7 +43,16 @@ pub fn install() -> Option<&'static AppLogger> {
     // here keeps it compiled and warning-free without editing their file.
     let _upstream: fn() -> Option<&'static AppLogger> = logging::install;
     let inner = INNER.get_or_init(|| AppLogger::new(filter, true));
+    // Windows has no /proc/meminfo: the report asks the system through winsafe instead.
+    #[cfg(windows)]
+    craft_log::report::set_memory_reader(windows_memory);
     craft_log::install_wrapped(&APP, inner, max).then_some(inner)
+}
+
+/// (total, available) physical memory in bytes (`GlobalMemoryStatusEx`), for the report.
+#[cfg(windows)]
+fn windows_memory() -> Option<(u64, u64)> {
+    winsafe::GlobalMemoryStatusEx().ok().map(|m| (m.ullTotalPhys, m.ullAvailPhys))
 }
 
 /// The log directory is known: record the log file's path for the lines that point at it.
@@ -62,7 +71,8 @@ pub fn session_text(native: crate::linux_libs::DisplaySession, window: crate::li
             let pen = || std::fs::read_to_string("/proc/bus/input/devices").is_ok_and(|d| crate::tablet::has_pen(&d));
             let libs = || crate::linux_libs::available(S::X11);
             if crate::tablet::pen_needs_xwayland(native, var, pen, libs) {
-                "Xwayland (X11 on a Wayland desktop), because a pen was found among the input devices; PHOTOCRAFT_NATIVE_WAYLAND=1 keeps native Wayland".to_owned()
+                "Xwayland (X11 on a Wayland desktop), because a pen was found among the input devices; PHOTOCRAFT_NATIVE_WAYLAND=1 keeps native Wayland"
+                    .to_owned()
             } else {
                 "Xwayland (X11 on a Wayland desktop), because Preferences › Performance › Linux display server is X11".to_owned()
             }
@@ -121,13 +131,38 @@ pub fn start_report(settings: Option<&Path>, window_session: &str) {
     let file = |name: &str| logs.as_ref().map(|d| d.join(name)).filter(|p| p.is_file());
     let (window, cli) = (file(logging::LOG_FILE), file(&craft_log::cli::file_name(APP.name)));
     let crash = logs.as_ref().and_then(|d| newest_file(d, &|name| name.starts_with("crash")));
-    r.add_logs(logs.as_deref(), &[("window log", window.as_deref()), ("previous window log", previous.as_deref()), ("command-line log", cli.as_deref())], crash.as_deref());
+    r.add_logs(
+        logs.as_deref(),
+        &[("window log", window.as_deref()), ("previous window log", previous.as_deref()), ("command-line log", cli.as_deref())],
+        crash.as_deref(),
+    );
     r.log(module_path!());
     add_window_fact(format!("Window session: {window_session}"));
 }
 
+/// `--version`'s text: upstream's long version when its build stamped a commit (their CI), else
+/// the version with the commit craft-log read from git, so a local build names its commit too.
+pub fn version_text() -> String {
+    version_text_of(photocraft_engine::build_info::long_version(), photocraft_engine::build_info::short_sha().is_some())
+}
+
+fn version_text_of(upstream: String, stamped: bool) -> String {
+    if stamped {
+        upstream
+    } else {
+        format!("{} (commit {}{}, built {})", photocraft_engine::build_info::VERSION, craft_log::BUILD_COMMIT, craft_log::BUILD_TREE, craft_log::BUILD_DATE)
+    }
+}
+
+/// What a screen line says about rotation when the window is not on Wayland: an X server applies
+/// a turned output itself (Linux off Wayland); Windows and macOS report screens as shown.
+fn rotation_off_wayland(linux: bool) -> &'static str {
+    if linux { "rotation already applied by the X server" } else { "sizes as the system shows them (rotation applied)" }
+}
+
 /// The Wayland outputs shown turned a quarter (mode sizes in pixels), as the rotation query found
-/// them; [`window_ready`] names them with the screens.
+/// them; [`window_ready`] names them with the screens. Only the Linux Wayland query calls it.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub fn turned_screens(modes: &[[u32; 2]]) {
     *TURNED.lock().unwrap_or_else(PoisonError::into_inner) = modes.to_vec();
 }
@@ -168,7 +203,7 @@ pub fn window_ready(cc: &eframe::CreationContext<'_>, on_wayland: bool) {
         seen.push(key);
         let (s, scale) = (m.size(), m.scale_factor());
         let rotation = if !on_wayland {
-            "rotation already applied by the X server".to_owned()
+            rotation_off_wayland(cfg!(target_os = "linux")).to_owned()
         } else if turned.contains(&[s.width, s.height]) {
             format!(
                 "shown turned a quarter, so the desktop is {} x {} pixels ({:.0} x {:.0} points)",
@@ -274,5 +309,21 @@ mod tests {
         // the token is named, never shown. The token's file is hidden too: its name says "token".
         let shown: Vec<String> = craft_log::report::switches(&vars, SWITCH_PREFIXES, SECRET_SWITCHES).into_iter().map(|(k, v)| format!("{k}={v}")).collect();
         assert_eq!(shown, ["PHOTOCRAFT_CONTROL_TOKEN=set (***)", "PHOTOCRAFT_CONTROL_TOKEN_FILE=set (***)", "WGPU_BACKEND=vulkan"]);
+    }
+
+    /// `--version` names the commit: upstream's text when their CI stamped one, else craft-log's.
+    #[test]
+    fn the_version_names_its_commit() {
+        assert_eq!(version_text_of("0.9.0 (abc1234, 2026-10-15)".into(), true), "0.9.0 (abc1234, 2026-10-15)");
+        let local = version_text_of("0.9.0 (dev build)".into(), false);
+        assert!(local.contains(&format!("commit {}", craft_log::BUILD_COMMIT)) && local.contains("built "), "{local}");
+        assert!(!local.contains("dev build"), "{local}");
+    }
+
+    /// Off Wayland only Linux has an X server that turns the screen; Windows and macOS do not.
+    #[test]
+    fn the_screen_line_names_the_x_server_on_linux_only() {
+        assert!(rotation_off_wayland(true).contains("X server"));
+        assert!(!rotation_off_wayland(false).contains("X server"));
     }
 }

@@ -64,6 +64,20 @@ fn this_settings_dir() -> Option<PathBuf> {
     settings_dir(|key| std::env::var_os(key), exe.as_deref().and_then(Path::parent))
 }
 
+/// `--version`'s text: upstream's long version when its build stamped a commit (their CI), else
+/// the version with the commit craft-log read from git, so a local build names its commit too.
+pub fn version_text() -> String {
+    version_text_of(photocraft_engine::build_info::long_version(), photocraft_engine::build_info::short_sha().is_some())
+}
+
+fn version_text_of(upstream: String, stamped: bool) -> String {
+    if stamped {
+        upstream
+    } else {
+        format!("{} (commit {}{}, built {})", photocraft_engine::build_info::VERSION, craft_log::BUILD_COMMIT, craft_log::BUILD_TREE, craft_log::BUILD_DATE)
+    }
+}
+
 /// Whether the run only prints the usage or the version (`--help`, `-h`, `help`, `--version`,
 /// `version`, `<subcommand> --help`): such a run installs no logger, so it creates no settings
 /// folder and no log, as in the window app. Decided the way [`crate::run`] decides it; a usage
@@ -357,6 +371,13 @@ mod tests {
         assert_eq!(masked(&["photocraft-cli", "serve", TOKEN, OTHER]).0, ["photocraft-cli", "serve", "***", "***"]);
         // Only exactly 64 digits.
         assert!(!looks_like_token(&TOKEN[1..]) && !looks_like_token(&format!("{TOKEN}0")) && !looks_like_token("b3309e27"));
+    }
+
+    #[test]
+    fn the_version_names_its_commit() {
+        assert_eq!(version_text_of("0.9.0 (abc1234, 2026-10-15)".into(), true), "0.9.0 (abc1234, 2026-10-15)");
+        let local = version_text_of("0.9.0 (dev build)".into(), false);
+        assert!(local.contains(&format!("commit {}", craft_log::BUILD_COMMIT)) && !local.contains("dev build"), "{local}");
     }
 
     #[test]
