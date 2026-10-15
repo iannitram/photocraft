@@ -46,6 +46,10 @@ pub const TABLE: &[(&str, Class)] = &[
     ("adobe-assets", Class::Standalone),
     // Pen tablet input (the one isolated `unsafe` helper: AppKit interop on macOS).
     ("tablet", Class::Standalone),
+    // Self-logging (ours, never offered upstream): stage scopes any library crate may open
+    // (no dependencies), and the logger additions the programs install.
+    ("craft-stage", Class::Standalone),
+    ("craft-log", Class::Layer(5)),
     ("doc", Class::Layer(1)),
     ("ops", Class::Layer(2)),
     ("paint", Class::Layer(2)),

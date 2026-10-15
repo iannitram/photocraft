@@ -163,6 +163,13 @@ pub fn fit_window(ctx: &egui::Context) -> bool {
     if maximized == Some(true) || fullscreen == Some(true) || !m.is_finite() || !outer.is_finite() || fits(outer.size(), m) {
         return false;
     }
+    log::warn!(
+        "decision: window: {:.0} x {:.0} points does not fit a {:.0} x {:.0}-point screen less {TASKBAR} for a taskbar; maximizing it",
+        outer.width(),
+        outer.height(),
+        m.x,
+        m.y
+    );
     ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
     true
 }
@@ -201,7 +208,9 @@ fn monitor_of(ctx: &egui::Context) -> Option<Vec2> {
 /// size is left alone. Not to be called inside a `ctx` closure (it reads the input).
 pub fn fitted_builder(ctx: &egui::Context, mut builder: egui::ViewportBuilder) -> egui::ViewportBuilder {
     let Some(wanted) = builder.inner_size else { return builder };
-    let (size, min) = fitted_window(wanted, builder.min_inner_size.unwrap_or(Vec2::ZERO), monitor_of(ctx));
+    let monitor = monitor_of(ctx);
+    let (size, min) = fitted_window(wanted, builder.min_inner_size.unwrap_or(Vec2::ZERO), monitor);
+    crate::self_logging::second_window_fitted(wanted, size, monitor); // self-logging: one decision line
     builder.inner_size = Some(size);
     if builder.min_inner_size.is_some() {
         builder.min_inner_size = Some(min);

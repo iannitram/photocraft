@@ -51,8 +51,9 @@ pub fn grabcut_with(img: &RgbImage, trimap: &mut [u8], iters: usize, ctl: &Inter
         })
         .collect();
     let mut models: Option<(Gmm, Gmm)> = None;
-    for _ in 0..iters.max(1) {
+    for iteration in 0..iters.max(1) {
         ctl.check()?;
+        craft_stage::stage_with("grabcut.models", &[("iteration", (iteration + 1) as f64)]);
         let (mut fs, mut bs) = (Vec::new(), Vec::new());
         for (p, t) in img.px.iter().zip(trimap.iter()) {
             if is_fg(*t) { fs.push(*p) } else { bs.push(*p) }
@@ -66,6 +67,7 @@ pub fn grabcut_with(img: &RgbImage, trimap: &mut [u8], iters: usize, ctl: &Inter
             Some((f, b)) => (f.refit(&fs).unwrap_or_else(|| f.clone()), b.refit(&bs).unwrap_or_else(|| b.clone())),
         };
         let (cf, cb) = data_costs(img, &fg, &bg);
+        craft_stage::stage_with("grabcut.cut", &[("iteration", (iteration + 1) as f64)]);
         // `grid_cut`'s weight on Boykov–Kolmogorov (ours), stopping on cancel (upstream's #4878).
         let cut = grid_cut_bk(img, &cf, &cb, &fixed, GAMMA, beta, &cancel).ok_or(Cancelled)?;
         let mut changed = 0usize;

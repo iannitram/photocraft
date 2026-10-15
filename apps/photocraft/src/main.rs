@@ -49,6 +49,7 @@ mod services;
 // Windows gets pen pressure from winit (WM_POINTER); the web runner has its own listener.
 #[cfg(any(target_os = "macos", target_os = "linux", test))]
 mod tablet;
+mod self_logging;
 mod ui_state;
 // Pure logic is tested on every platform; only Linux asks the compositor.
 #[cfg(any(target_os = "linux", test))]
@@ -172,7 +173,7 @@ mod control_port_tests {
 
 fn main() -> eframe::Result {
     // First, so the panic hook and every start-up warning are recorded (`logging`).
-    let logger = logging::install();
+    let logger = self_logging::install();
     crash_guard::install_hook();
     // The system font scan can take seconds (minutes on some Macs): run it off the UI thread.
     photocraft_ui_egui::type_tool::warm_fonts();
@@ -240,7 +241,10 @@ fn main() -> eframe::Result {
     // and usage errors leave no file behind. Records logged until now are written to it first.
     if let (Some(logger), Some(dir)) = (logger, services::config_dir()) {
         match logger.attach_dir(&dir.join("logs")) {
-            Ok(path) => log::info!("PhotoCraft {}, log file {}", photocraft_engine::build_info::long_version(), path.display()),
+            Ok(path) => {
+                self_logging::log_dir(&dir.join("logs"));
+                log::info!("PhotoCraft {}, log file {}", photocraft_engine::build_info::long_version(), path.display())
+            }
             // Standard error only by now (`attach_dir` gave up on the file); unlike `eprintln!`, never panics.
             Err(e) => log::warn!("no log file: {e}"),
         }
@@ -269,6 +273,15 @@ fn main() -> eframe::Result {
 
     // winit and wgpu dlopen the windowing and GPU libraries, and some of those crates panic when
     // one is missing (issue #201). Name the package to install and exit instead.
+    #[cfg(target_os = "linux")]
+    let window_session = self_logging::session_text(native_session, session);
+    #[cfg(not(target_os = "linux"))]
+    let window_session = self_logging::session_text_here();
+    self_logging::start_report(services::config_dir().as_deref(), &window_session);
+    #[cfg(target_os = "linux")]
+    let window_on_wayland = session == linux_libs::DisplaySession::Wayland;
+    #[cfg(not(target_os = "linux"))]
+    let window_on_wayland = false;
     #[cfg(target_os = "linux")]
     if let Err(message) = linux_libs::preflight(session) {
         eprint!("{message}");
@@ -394,9 +407,12 @@ fn main() -> eframe::Result {
                         services::xwayland_command(var("FLATPAK_ID").as_deref(), var("APPIMAGE").as_deref(), std::env::var_os("DISPLAY").is_some());
                     // winit reports a panel shown turned a quarter by its unturned size: tell the
                     // work area, so a window too tall for the real desktop is maximized.
-                    photocraft_ui_egui::work_area::set_quarter_turned_modes(&cc.egui_ctx, wayland_outputs::quarter_turned_modes_now());
+                    let turned = wayland_outputs::quarter_turned_modes_now();
+                    self_logging::turned_screens(&turned);
+                    photocraft_ui_egui::work_area::set_quarter_turned_modes(&cc.egui_ctx, turned);
                 }
             }
+            self_logging::window_ready(cc, cfg!(target_os = "linux") && window_on_wayland);
             let mut app = PhotocraftApp::new(Session::new(), services);
             app.integrated_titlebar = cfg!(target_os = "macos");
             app.custom_titlebar = custom_titlebar;
@@ -528,6 +544,7 @@ fn main() -> eframe::Result {
             Ok(Box::new(app))
         }),
     );
+    self_logging::run_ended(result.is_ok());
     // Closed or failed outside graphics initialization: not a driver crash. A renderer error
     // keeps the marker, so the next start tries a safer backend, unless there is no safer one:
     // a failed CPU start would otherwise pin every later start to CPU.
