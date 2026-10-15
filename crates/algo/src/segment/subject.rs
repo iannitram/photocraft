@@ -126,6 +126,12 @@ pub fn select_subject_tuned_with(sampler: &dyn Sampler, canvas: Rect, tune: &Sub
     let step = super::scale_for(canvas, WORK_PX);
     let img = sampler.rgb_scaled(canvas, step);
     let (w, h) = (img.w, img.h);
+    // A split frame (two panels side by side) is an edit, not a still with its subject leaving
+    // through the bottom: the open bottom took one panel whole there. Read the bottom as
+    // background, as on every side.
+    if tune.bg_sides & BOTTOM == 0 && has_vertical_split(&img) {
+        return select_subject_tuned_with(sampler, canvas, &SubjectTuning { bg_sides: tune.bg_sides | BOTTOM, ..*tune }, ctl);
+    }
     let sal = saliency_sides(&img, tune.bg_sides);
     ctl.check()?;
     let t = otsu(&sal).clamp(0.15, 0.85);
@@ -154,8 +160,52 @@ pub fn select_subject_tuned_with(sampler: &dyn Sampler, canvas: Rect, tune: &Sub
     let (low, fg, bg) = backdrop_pass(&img, &low, tune.bg_sides, ctl)?.unwrap_or((low, fg, bg));
     ctl.check()?;
     let low = super::fill_holes_by_model(&low, &img, &fg, &bg, 0.002, 0.05);
+    // With the bottom open, a backdrop that runs into it (a logo on a gradient) can be taken
+    // whole: a selection of nearly the whole picture is not a subject. Do it again with the bottom
+    // read as background.
+    if open_bottom_took_too_much(&low, tune.bg_sides) {
+        return select_subject_tuned_with(sampler, canvas, &SubjectTuning { bg_sides: tune.bg_sides | BOTTOM, ..*tune }, ctl);
+    }
     super::finish_region_with(sampler, canvas, step, &low, w, h, Some((&fg, &bg)), ctl)
 }
+
+/// The bottom side bit of [`SubjectTuning::bg_sides`].
+const BOTTOM: u8 = 4;
+
+/// Share of the picture an open-bottom selection may not reach ([`select_subject_tuned_with`]).
+const TOO_MUCH: f32 = 0.9;
+
+/// Whether a working-resolution selection `low`, made with the bottom side open (`sides` without
+/// [`BOTTOM`]), covers so much of the picture that it took the backdrop with it.
+pub(super) fn open_bottom_took_too_much(low: &[bool], sides: u8) -> bool {
+    sides & BOTTOM == 0 && !low.is_empty() && low.iter().filter(|v| **v).count() as f32 >= TOO_MUCH * low.len() as f32
+}
+
+/// Whether the picture is two panels side by side: a straight vertical edge through nearly its
+/// whole height, between a fifth and four fifths of its width. A column counts as an edge where
+/// the colours on its two sides differ by more than [`SPLIT_STEP`] in at least [`SPLIT_ROWS`] of
+/// the rows. A still rarely has one (a door frame reaches the edge only now and then), a split
+/// screen always does.
+pub(super) fn has_vertical_split(img: &super::RgbImage) -> bool {
+    let (w, h) = (img.w, img.h);
+    if w < 10 || h < 10 {
+        return false;
+    }
+    (w / 5..w * 4 / 5).any(|x| {
+        let rows = (0..h)
+            .filter(|y| {
+                let (a, b) = (img.px[y * w + x - 1], img.px[y * w + x + 1]);
+                (0..3).map(|c| (a[c] - b[c]).abs()).fold(0.0f32, f32::max) > SPLIT_STEP
+            })
+            .count();
+        rows as f32 >= SPLIT_ROWS * h as f32
+    })
+}
+
+/// Least colour step across a split frame's seam (0..1 per channel).
+const SPLIT_STEP: f32 = 0.06;
+/// Least share of the rows the seam must cross.
+const SPLIT_ROWS: f32 = 0.85;
 
 /// The trimap of the first cut: salient pixels probable foreground, the chosen sides and the
 /// least salient pixels definite background.
