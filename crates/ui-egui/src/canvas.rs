@@ -1673,7 +1673,12 @@ fn ensure_gpu(app: &mut PhotocraftApp, ctx: &egui::Context, idx: usize, visible:
     if let Some(e) = &r.fallback
         && app.perf.gpu_fallback.as_deref() != Some(e.as_str())
     {
-        log::warn!("decision: gpu.canvas: {e}; using the CPU compositor (a {} x {} document, GPU memory budget {} MiB)", doc.size.width, doc.size.height, app.perf.gpu_budget_mb);
+        log::warn!(
+            "decision: gpu.canvas: {e}; using the CPU compositor (a {} x {} document, GPU memory budget {} MiB)",
+            doc.size.width,
+            doc.size.height,
+            app.perf.gpu_budget_mb
+        );
     }
     if r.kind != crate::gpu_canvas::REFRESH_DEFERRED {
         app.perf.record(r.kind, r.px, r.composite_ms, r.upload_ms);

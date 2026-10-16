@@ -279,8 +279,8 @@ impl GpuCanvas {
     pub fn canvas_cost(&self, doc: &photocraft_doc::Document) -> (u64, u64) {
         let size = [doc.size.width, doc.size.height];
         let bytes = canvas_texture_bytes(size, self.tile, texel_bytes(self.format_for(doc.depth, size)));
-        let r = self.rs.renderer.read();
-        (bytes, r.callback_resources.get::<Resources>().map_or(0, |res| res.canvas_budget))
+        // Upstream keeps the budget on the canvas itself now (shared with the paint callback).
+        (bytes, self.canvas_budget.load(Ordering::Relaxed))
     }
 
     /// Cap lower-stack composite reuse; zero disables it for profiling the uncached path.
