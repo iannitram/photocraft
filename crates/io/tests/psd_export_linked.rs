@@ -30,11 +30,20 @@ fn linked_doc(path: &str) -> Document {
     d
 }
 
-/// The export either fails or warns, and says why; it never embeds what isn't a file.
+/// The export either fails or warns, and says why; it never embeds what isn't a file. Two
+/// guards can say it: `doc_path::resolve` (upstream's, via `craft_docpath`) refuses a device
+/// path ("names a device, not a file") or a pipe on a server ("is on another computer") by name
+/// before anything opens it, and `read_linked` (ours) refuses anything left that is not a
+/// regular file.
 fn refuses(path: &str) {
+    let said_why =
+        |m: &str| m.contains("not a regular file") || m.contains("the path names a device, not a file") || m.contains("the path is on another computer");
     match export(&linked_doc(path), "a.psd", &ExportOptions::default()) {
-        Err(e) => assert!(e.to_string().contains("not a regular file"), "{e}"),
-        Ok(r) => assert!(r.warnings.iter().any(|w| w.contains("not a regular file")), "{:?}", r.warnings),
+        Err(e) => assert!(said_why(&e.to_string()), "{e}"),
+        Ok(r) => {
+            assert!(r.warnings.iter().any(|w| said_why(w)), "{:?}", r.warnings);
+            assert!(!r.warnings.iter().any(|w| w.contains("was embedded")), "{:?}", r.warnings);
+        }
     }
 }
 

@@ -37,6 +37,8 @@ serde_json = { workspace = true }
 log = { workspace = true }
 # Self-logging (ours, never offered upstream).
 craft-log = { path = "../craft-log" }
+# Display order of right-to-left labels (`bidi_text.rs`); already linked through usvg.
+unicode-bidi = "0.3"
 base64 = "0.22"
 # Inflating the translation catalogs, stored deflated (build.rs); already linked through photocraft-io.
 flate2 = { workspace = true }
