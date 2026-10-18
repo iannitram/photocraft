@@ -35,8 +35,29 @@ pub fn window_facts() -> Vec<String> {
 
 /// The diagnostic fields System Info shows after its own (English; they are for a report).
 pub fn system_info_lines() -> Vec<String> {
-    let report = Report::new(&APP);
     let mut lines = vec![format!("Build: {}", APP.build_line())];
+    lines.extend(report_lines());
+    lines.extend(window_facts());
+    lines.push(match craft_log::log_path() {
+        Some(path) => format!("Log file: {}", mask_home(&path.display().to_string())),
+        None => "Log file: none (standard error only)".to_owned(),
+    });
+    lines
+}
+
+/// The machine's fields, read at most once a second: System Info builds its English copy and
+/// its on-screen text from two calls, and they must not disagree because free memory moved
+/// between them.
+fn report_lines() -> Vec<String> {
+    static LAST: Mutex<Option<(std::time::Instant, Vec<String>)>> = Mutex::new(None);
+    let mut last = LAST.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some((at, lines)) = last.as_ref()
+        && at.elapsed() < std::time::Duration::from_secs(1)
+    {
+        return lines.clone();
+    }
+    let report = Report::new(&APP);
+    let mut lines = Vec::new();
     for (section, key, label) in [
         ("system", "operating system", "Operating system"),
         ("system", "kernel", "Kernel"),
@@ -50,11 +71,7 @@ pub fn system_info_lines() -> Vec<String> {
             lines.push(format!("{label}: {value}"));
         }
     }
-    lines.extend(window_facts());
-    lines.push(match craft_log::log_path() {
-        Some(path) => format!("Log file: {}", mask_home(&path.display().to_string())),
-        None => "Log file: none (standard error only)".to_owned(),
-    });
+    *last = Some((std::time::Instant::now(), lines.clone()));
     lines
 }
 
