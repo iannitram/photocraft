@@ -2830,3 +2830,363 @@ curves	Smooth	平滑
 	This document's layers: {needed} of {budget} for layers	此文档的图层：图层可用 {budget} 中的 {needed}
 	This document's layers need {needed} but may hold {budget}: whole-document redraws use the CPU	此文档的图层需要 {needed}，但只能占用 {budget}：整个文档的重绘使用 CPU
 	GPU Memory (MB, 0 = Automatic)	GPU 内存（MB，0 = 自动）
+
+# Machine translations (local model, homework jobs P026-P032), reviewed and corrected 2026-10-17.
+# Not checked by a native speaker; written from the meaning of the English source, like the rows above.
+# P026
+@id	select.all	全选
+@id	edit.stroke	描边…
+@id	edit.transform.scale	缩放
+@id	edit.purge.undo	撤销历史
+cameraRaw	Red	红色
+cameraRaw	Orange	橙色
+cameraRaw	Yellow	黄色
+cameraRaw	Green	绿色
+cameraRaw	Aqua	水绿色
+cameraRaw	Blue	蓝色
+cameraRaw	Purple	紫色
+cameraRaw	Magenta	洋红
+cameraRaw	Luminance	亮度
+cameraRaw	Temperature	色温
+cameraRaw	Color	颜色
+	32-bit Preview Options	32 位预览选项
+	3D	3D
+	About {app}	关于 {app}
+	Accented Edges	强调边缘
+	Accurate	精确
+	Actual Pixels	实际像素
+	Adaptive Wide Angle	自适应广角
+	Add Noise	添加杂色
+	Add to	添加到
+	Adjust Interval For Loops	调整循环间隔
+	Adjustment	调整
+	Adjustment Layers	调整图层
+	Adjustment Properties	调整属性
+	Adobe RGB (1998)	Adobe RGB (1998)
+	Advanced Blending	高级混合
+	After	之后
+	Alpha	Alpha
+	Alternative	替代
+	Ambience	环境
+	Ambient	环境光
+	Amplitude Max	振幅最大值
+	Amplitude Min	振幅最小值
+	Angled Strokes	倾斜笔触
+	Anisotropic	各向异性
+	Aperture	光圈
+	Apply Data Set	应用数据组
+	Apply Image	应用图像
+	Apply Layer Comp	应用图层复合
+	Apply Mask	应用蒙版
+	Arbitrary	任意
+	Arc	弧形
+	Arch	拱形
+	Area	区域
+	Around Center	围绕中心
+	Arrangement	排列
+# P027
+	Artboard from Group	从组创建画板
+	Artboard from Layers	从图层创建画板
+	Artboards	画板
+	Artist	艺术家
+	Artistic	艺术效果
+	Assign Profile	指定配置文件
+	At	在
+	Author	作者
+	Auto Scale	自动缩放
+	Auto-Align Layers	自动对齐图层
+	Auto-Blend Layers	自动混合图层
+	Back	返回
+	Background Level	背景级别
+	Bamboo	竹子
+	Bas Relief	浅浮雕
+	Base Tree Type	基础树类型
+	Baseline Shift	基线偏移
+	Batch	批处理
+	Before	之前
+	Berries	浆果
+	Best	最佳
+	Black Clip	黑色剪切
+	Black Intensity	黑色强度
+	Blade Curvature	叶片弯度
+	Blast	大风
+	Bleach Bypass	漂白旁路
+	Blend	混合
+	Blocks	方块
+	Blue Yellow	蓝黄
+	Bold Italic	粗斜体
+	Border	边界
+	Border Thickness	边框粗细
+	Box Blur	方框模糊
+	Branches Color	树枝颜色
+	Branches Height	树枝高度
+	Branches Thickness	树枝粗细
+	Brick	砖块
+	Bristle Detail	刷毛细节
+	Browse	浏览
+	Brush Detail	画笔细节
+	Brush Size	画笔大小
+	Brush Strokes	画笔描边
+	Brush Type	画笔类型
+	Bulge	凸起
+	Burlap	粗麻布
+	Calculations	计算
+	Camera Calibration	相机校准
+	Camera Raw	Camera Raw
+	Camera Raw Filter	Camera Raw 滤镜
+	Candle Light	蜡烛光
+# P028
+	Canvas Size	画布大小
+	Caption	说明
+	Category	类别
+	Cell Size	单元格大小
+	Center X	中心 X
+	Center Y	中心 Y
+	Chalk & Charcoal	粉笔和木炭
+	Chalk Area	粉笔区域
+	Channel	通道
+	Channel1	通道 1
+	Channel2	通道 2
+	Channel3	通道 3
+	Channel4	通道 4
+	Charcoal	木炭
+	Charcoal Area	木炭区域
+	Charcoal Thickness	木炭粗细
+	Chrome	铬黄
+	Circle	圆形
+	Circularity	圆形度
+	Cleanliness	洁净度
+	Clear Amount	清除量
+	Clear Selection	清除选区
+	Clipping Path	剪切路径
+	Clone	仿制
+	Close Window	关闭窗口
+	Clumped	簇状
+	Coarse Dots	粗点
+	Color Decontaminate	净化颜色
+	Color Halftone	彩色半调
+	Color Lookup Tables	颜色查找表
+	Color Picker	拾色器
+	Color Range	色彩范围
+	Color Settings	颜色设置
+	Color Swatches	色板
+	Color Table	颜色表
+	Color indicates	色彩指示
+	Colored Pencil	彩色铅笔
+	Compare	比较
+	Compatibility	兼容性
+	Compose	合成
+	Compression	压缩
+	Condensed	紧缩
+	Conditional Mode Change	条件模式转换
+	Confirm	确认
+	Constraints	约束
+	Content-Aware Move	内容感知移动
+	Continue	继续
+	Contract	收缩
+	Contrasty	高对比度
+	Conté Crayon	炭精笔
+# P029
+	Convert to Linked	转换为链接对象
+	Convert to Profile	转换为配置文件
+	Cool	冷色调
+	Cooling L B B	冷却滤镜 (LBB)
+	Cooling80	冷却滤镜 (80)
+	Cooling82	冷却滤镜 (82)
+	Copyright Status	版权状态
+	Copyrighted	受版权保护
+	Correct C A	校正色差
+	Correct Distortion	校正畸变
+	Correct Vignette	校正晕影
+	Crack Brightness	裂纹亮度
+	Crack Depth	裂纹深度
+	Crack Spacing	裂纹间距
+	Craquelure	龟裂效果
+	Create By	创建方式
+	Cross	十字交叉
+	Cross Process	交叉处理
+	Crosshatch	交叉阴影
+	Crystallize	晶格化
+	Current	当前
+	Curve Darks	曲线暗部
+	Curve Highlights	曲线高光
+	Curve Lights	曲线亮部
+	Curve Shadows	曲线阴影
+	Curve Splits	曲线分割
+	Custom Branch Color	自定义树枝颜色
+	Cutout	剪贴画
+	Daisies	雏菊
+	Dark Intensity	暗部强度
+	Dark Rough	暗部粗糙度
+	Dark Strokes	暗部笔触
+	Darken Only	仅加深
+	Darkness	暗度
+	Data	数据
+	Date	日期
+	Date and Time	日期和时间
+	Day For Night	夜景效果
+	De-Interlace	去交错
+	Deep Blue	深蓝色
+	Deep Emerald	深翠绿
+	Deep Red	深红色
+	Deep Yellow	深黄色
+	Default Foreground and Background Colors	默认前景和背景颜色
+	Default Leaves	默认叶片
+	Defaults	默认值
+	Define Brush Preset	定义画笔预设
+	Define Custom Shape	定义自定形状
+	Define Pattern	定义图案
+	Definition	定义
+# P030
+	Defringe	去边
+	Degrees	度数
+	Delete Path	删除路径
+	Depth Map	深度图
+	Depth Mode	深度模式
+	Diameter	直径
+	Diffuse	扩散
+	Diffuse Glow	扩散亮光
+	Digits	位数
+	Direction Balance	方向平衡
+	Disable	禁用
+	Disabled	已禁用
+	Displace	置换
+	Display	显示
+	Distortion	扭曲
+	Distribution	分布
+	Documentation	说明文档
+	Documents	文档
+	Dot	点
+	Double Line	双线
+	Draft	草稿
+	Dry Brush	干画笔
+	Duplicate	复制
+	Duplicate Layer	复制图层
+	Duplicate Layer Comp	复制图层复合
+	Duplicate Layers	复制图层
+	Duplicate Path	复制路径
+	Duplication	复制
+	Duration	持续时间
+	Dust & Scratches	蒙尘与划痕
+	Dynamics	动态
+	Edge Brightness	边缘亮度
+	Edge Extension	边缘扩展
+	Edge Fidelity	边缘保真度
+	Edge Intensity	边缘强度
+	Edge Only	仅边缘
+	Edge Simplicity	边缘简洁度
+	Edge Thickness	边缘粗细
+	Edge Width	边缘宽度
+	Elevation	高度
+	Eliminate	消除
+	Enable	启用
+	End X	结束 X
+	End Y	结束 Y
+	Enlarged	放大
+	Errors	错误
+	Even Fields	偶数场
+	Export As	导出为
+	Export Contents	导出内容
+	Export Options	导出选项
+# P031
+	Export Preferences	导出首选项
+	Export Settings	导出设置
+	Export/Import Presets	导出/导入预设
+	Extensions	扩展
+	Extra Bold	超粗体
+	Extra Light	超细体
+	Extrude	凸出
+	F	F
+	Faded Film	褪色胶片
+	Failed	失败
+	Fast	快速
+	Fiber Length	纤维长度
+	Fibers	纤维
+	Field Blur	场景模糊
+	File Info	文件信息
+	File Name	文件名
+	Filename	文件名
+	Fill Color	填充颜色
+	Fill Path	填充路径
+	Film Grain	胶片颗粒
+	Filter Gallery	滤镜库
+	Find	查找
+	Fine	精细
+	Fine Dots	细点
+	Finish	完成
+	First Line Indent	首行缩进
+	Fish	鱼形
+	Fit Image	适配图像
+	Flag	旗帜
+	Flame	火焰
+	Flame Bottom Alignment	火焰底部对齐
+	Flame Lines	火焰线条
+	Flame Shape	火焰形状
+	Flame Style	火焰样式
+	Flame Type	火焰类型
+	Flash	闪光
+	Flat	平面
+	Flat Shading	平面着色
+	Flower Color	花朵颜色
+	Focal Distance	焦点距离
+	Focal Length35mm	焦距（35 毫米等效）
+	Focus	焦点
+	Focus Area	焦点区域
+	Foreground Level	前景级别
+	Frame	框架
+	Fresco	湿壁画
+	From Left	从左侧
+	From Right	从右侧
+	Frosted	磨砂
+	Full Screen	全屏
+# P032
+	Fullscreen	全屏
+	Fuzziness	容差
+	Gamma	伽马
+	Gaussian Blur	高斯模糊
+	Generators	生成器
+	Generic	通用
+	Glass	玻璃
+	Global Light	全局光
+	Gloss	光泽
+	Glow Amount	发光量
+	Glow Brightness	发光亮度
+	Glow Size	发光大小
+	Glowing Edges	发光边缘
+	Glyph	字形
+	Good	良好
+	Grade Balance	分级平衡
+	Grade Blending	分级混合
+	Grade Global	分级全局
+	Grade Highlights	分级高光
+	Grade Midtones	分级中间调
+	Grade Shadows	分级阴影
+	Grain Amount	颗粒量
+	Grain Roughness	颗粒粗糙度
+	Grain Size	颗粒大小
+	Grain Type	颗粒类型
+	Graininess	颗粒感
+	Grainy Dots	颗粒点
+	Graphic Pen	图形笔
+	Graphic and web	图形和网页
+	Gray Value (Maximum)	灰度值（最大）
+	Gray Value (Mean)	灰度值（平均）
+	Gray Value (Median)	灰度值（中位数）
+	Gray Value (Minimum)	灰度值（最小）
+	Group · {n} layer	组 · {n} 个图层
+	Groups	组
+	Grout Width	填缝宽度
+	HDR Toning	HDR 色调
+	Halftone Pattern	半色调图案
+	Hand	抓手
+	Heal	修复
+	Healing	修复
+	Hearts	心形
+	Heptagon	七边形
+	Hexagon	六边形
+	Hidden	隐藏
+	Hide	隐藏
+	Hide Others	隐藏其他
+	Hide {app}	隐藏 {app}
+	High	高
+	High Pass	高反差保留
