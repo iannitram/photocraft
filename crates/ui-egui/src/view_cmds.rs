@@ -286,7 +286,7 @@ fn changed_flags<T: Copy>(now: T, def: T, keys: &[&str], slot: impl for<'a> Fn(&
     (!diff.is_empty()).then_some(Value::Object(diff))
 }
 
-/// View › Extras, Show and Snap To as remembered across restarts (`Preferences::view_extras`):
+/// View › Extras, Snap, Show and Snap To as remembered across restarts (`Preferences::view_extras`):
 /// only what differs from the defaults, so a default changed in a later release still reaches
 /// users who never touched that item. `Null` when nothing differs.
 fn remembered(app: &PhotocraftApp) -> Value {
@@ -301,6 +301,11 @@ fn remembered(app: &PhotocraftApp) -> Value {
     }
     if e.guides != def.guides {
         m.insert("guides".into(), Value::Bool(e.guides));
+    }
+    // View › Snap itself (Lani's bug ian-1019-b, second report: turned off, it came back on at
+    // the next launch, so the layer snapped to the canvas centre and edges again).
+    if e.snap != def.snap {
+        m.insert("snap".into(), Value::Bool(e.snap));
     }
     if let Some(show) = changed_flags(v.show, Show::default(), &SHOW_KEYS, show_slot) {
         m.insert("show".into(), show);
@@ -341,6 +346,9 @@ pub fn restore(app: &mut PhotocraftApp) {
     }
     if let Some(on) = flag("guides") {
         app.ui.extras.guides = on;
+    }
+    if let Some(on) = flag("snap") {
+        app.ui.extras.snap = on;
     }
     for (k, v) in saved.get("show").and_then(Value::as_object).into_iter().flatten() {
         if let (Some(slot), Some(on)) = (show_slot(&mut app.ui.view.show, k), v.as_bool()) {
