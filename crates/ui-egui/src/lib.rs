@@ -1474,10 +1474,14 @@ impl PhotocraftApp {
         let flat = plain_raster(&st.doc).is_some();
         let ext = st.path.as_deref().and_then(|p| std::path::Path::new(p).extension()).map(|e| e.to_string_lossy().to_ascii_lowercase());
         // An OpenRaster file only when it holds the whole document (#3806): else PSD is offered.
-        let holds_ora = st.path.as_deref().is_some_and(|p| photocraft_engine::file_cmds::holds_at(&st.doc, p));
+        let holds_own = st.path.as_deref().is_some_and(|p| photocraft_engine::file_cmds::holds_at(&st.doc, p));
+        // A PSD/PSB that can't keep the video timeline or frames (Codex review PX1) isn't
+        // suggested either: PhotoCraft's own format is, which keeps them.
+        let video = !photocraft_io::psd_losses(&st.doc).is_empty();
         let writable = ext.is_some_and(|e| {
-            matches!(e.as_str(), photocraft_format::EXTENSION | "psd" | "psb" | "tif" | "tiff")
-                || (e == "ora" && holds_ora)
+            matches!(e.as_str(), photocraft_format::EXTENSION | "tif" | "tiff")
+                || (matches!(e.as_str(), "psd" | "psb") && holds_own)
+                || (e == "ora" && holds_own)
                 || (flat && photocraft_codecs::from_extension(&e).is_some_and(|f| f.caps().write))
         });
         let suggested = match &st.path {
@@ -1487,6 +1491,7 @@ impl PhotocraftApp {
                 let ext = match photocraft_engine::file_cmds::extension(source).as_deref() {
                     Some("pdn") => "pcraft",
                     Some("kra" | "krz") => "ora",
+                    _ if video => "pcraft",
                     _ => "psd",
                 };
                 std::path::Path::new(source).with_extension(ext).to_string_lossy().into_owned()

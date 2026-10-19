@@ -1020,6 +1020,39 @@ fn openraster_save_never_overwrites_what_it_cannot_hold() {
     assert!(!st.is_dirty());
 }
 
+/// Codex review PX1 (2026-10-19): a PSD keeps neither the video timeline nor video frames. File ›
+/// Save on a document that has them doesn't write its .psd and mark it saved: a notice names the
+/// loss, Save As offers .pcraft (which keeps them), and an explicit Save As to .psd is a copy that
+/// leaves the document unsaved.
+#[test]
+fn psd_save_of_a_video_timeline_warns_offers_pcraft_and_stays_unsaved() {
+    let (mut app, open, written) = app();
+    app.run("layer.new.layer", json!({})).unwrap();
+    app.session.active_mut().unwrap().path = Some("/pics/clip.psd".into());
+    let ctx = egui::Context::default();
+    menus::invoke(&mut app, &ctx, "file.save", json!({})).unwrap();
+    assert_eq!(*written.borrow(), ["/pics/clip.psd"], "without video a PSD saves in place");
+    std::sync::Arc::make_mut(&mut app.session.active_mut().unwrap().doc).timeline = Some(photocraft_doc::Timeline::new(10, 24.0));
+    app.run("layer.new.layer", json!({})).unwrap();
+    let notices = app.ui.notices.len();
+    menus::invoke(&mut app, &ctx, "file.save", json!({})).unwrap();
+    app.poll_file_dialog(&ctx, None);
+    assert_eq!(written.borrow().len(), 1, "the .psd is not overwritten");
+    assert!(matches!(open.borrow().as_slice(), [(FileDialogRequest::Save { suggested }, _)] if suggested == "/pics/clip.pcraft"), "Save As offers .pcraft");
+    assert_eq!(app.ui.notices.len(), notices + 1);
+    let lines = &app.ui.notices.last().unwrap().lines;
+    assert!(lines.iter().any(|l| l.contains("timeline")) && lines.iter().any(|l| l.contains(".pcraft")), "{lines:?}");
+    assert!(app.session.active().unwrap().is_dirty(), "the edits are still unsaved");
+    answer(&open, None);
+    app.poll_file_dialog(&ctx, None);
+    // Save As to a PSD anyway: a copy; the document keeps its file and stays unsaved.
+    menus::invoke(&mut app, &ctx, "file.saveAs", json!({"path": "/pics/copy.psd"})).unwrap();
+    assert_eq!(written.borrow().last().map(String::as_str), Some("/pics/copy.psd"));
+    let st = app.session.active().unwrap();
+    assert_eq!(st.path.as_deref(), Some("/pics/clip.psd"));
+    assert!(st.is_dirty(), "a lossy PSD copy never marks the document saved");
+}
+
 /// Save As to OpenRaster of a document it can't hold writes a copy, as Photoshop does for formats
 /// that can't keep everything: the document keeps its file and its unsaved state. An automation
 /// save without a path won't overwrite such an .ora either.

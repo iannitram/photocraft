@@ -168,13 +168,15 @@ pub fn layered_extension(ext: &str) -> bool {
 }
 
 /// Whether a file in format `ext` (lower-case) holds the whole of `doc`, so it can be the
-/// document's own file: PSD, PSB and .pcraft always; OpenRaster only when it drops nothing (no
-/// adjustment layers, styles, masks…, [`photocraft_io::ora_losses`]). A save to a format that
+/// document's own file: .pcraft always; PSD and PSB unless the document has a video timeline or
+/// video frames ([`photocraft_io::psd_losses`], Codex review PX1); OpenRaster only when it drops
+/// nothing (no adjustment layers, styles, masks…, [`photocraft_io::ora_losses`]). A save to a format that
 /// doesn't hold the document is a copy, and File › Save goes through Save As, so an editable
 /// original is never overwritten with less than it had (#3806).
 pub fn holds(doc: &photocraft_doc::Document, ext: &str) -> bool {
     match ext {
-        "psd" | "psb" | "pcraft" => true,
+        "pcraft" => true,
+        "psd" | "psb" => photocraft_io::psd_losses(doc).is_empty(),
         "ora" => photocraft_io::ora_losses(doc).is_empty(),
         _ => false,
     }
@@ -186,10 +188,11 @@ pub fn holds_at(doc: &photocraft_doc::Document, path: &str) -> bool {
 }
 
 /// What a save of `doc` to `path` would leave out when its format can't hold it: OpenRaster's
-/// [`photocraft_io::ora_losses`]; empty for other formats.
+/// [`photocraft_io::ora_losses`], PSD/PSB's [`photocraft_io::psd_losses`]; empty for other formats.
 pub fn losses_at(doc: &photocraft_doc::Document, path: &str) -> Vec<String> {
     match extension(path).as_deref() {
         Some("ora") => photocraft_io::ora_losses(doc),
+        Some("psd" | "psb") => photocraft_io::psd_losses(doc),
         _ => Vec::new(),
     }
 }

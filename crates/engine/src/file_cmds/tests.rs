@@ -1248,3 +1248,29 @@ fn batch_naming_rejects_outputs_that_replace_inputs_before_processing() {
     assert_eq!(std::fs::read(&first).unwrap(), before[0]);
     assert_eq!(std::fs::read(&second).unwrap(), before[1]);
 }
+
+/// Codex review PX1 (2026-10-19): PSD/PSB keep neither Window › Timeline nor a layer's video
+/// frames, so a save there loses them: the format doesn't hold such a document (the save is a
+/// copy, the document stays unsaved) and the losses are named, as for OpenRaster (#3806).
+#[test]
+fn psd_does_not_hold_a_timeline_or_video_frames() {
+    let s = session(8, 6, 8);
+    let plain = doc(&s).clone();
+    let mut timed = plain.clone();
+    timed.timeline = Some(photocraft_doc::Timeline::new(10, 24.0));
+    let mut video = plain.clone();
+    let fmt = video.pixel_format();
+    let mut l = photocraft_doc::Layer::raster("Clip", fmt);
+    l.video = Some(photocraft_doc::VideoData::new(vec![photocraft_raster::Surface::new(fmt), photocraft_raster::Surface::new(fmt)], 24.0));
+    video.layers.push(l);
+    for p in ["a.psd", "a.psb", "A.PSD"] {
+        assert!(holds_at(&plain, p), "{p}: a plain document is held");
+        assert!(losses_at(&plain, p).is_empty(), "{p}");
+        assert!(!holds_at(&timed, p), "{p}: the timeline would be lost");
+        assert!(losses_at(&timed, p).iter().any(|l| l.contains("timeline")), "{p}: {:?}", losses_at(&timed, p));
+        assert!(!holds_at(&video, p), "{p}: the video frames would be lost");
+        assert!(losses_at(&video, p).iter().any(|l| l.contains("video")), "{p}: {:?}", losses_at(&video, p));
+    }
+    // PhotoCraft's own format keeps both.
+    assert!(holds_at(&timed, "a.pcraft") && holds_at(&video, "a.pcraft"));
+}

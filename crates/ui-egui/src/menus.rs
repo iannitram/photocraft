@@ -242,7 +242,12 @@ pub(crate) fn invoke_unguarded(app: &mut PhotocraftApp, ctx: &egui::Context, id:
                             let name = crate::file_open::display_name(&path);
                             let title = crate::i18n::fmt(tl!("{name} can't keep everything in this document"), &[("name", name.as_str())]);
                             let mut lines = losses;
-                            lines.push(tl!("Choose a format that keeps it, such as Photoshop (PSD), or save a copy.").to_string());
+                            let ext = photocraft_engine::file_cmds::extension(&path);
+                            lines.push(if matches!(ext.as_deref(), Some("psd" | "psb")) {
+                                tl!("Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.").to_string()
+                            } else {
+                                tl!("Choose a format that keeps it, such as Photoshop (PSD), or save a copy.").to_string()
+                            });
                             crate::notices::post(app, title, lines, false, None);
                             app.save_as_with(None, tga_bits)
                         }
