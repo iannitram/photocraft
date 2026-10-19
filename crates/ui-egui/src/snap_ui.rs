@@ -44,8 +44,12 @@ pub struct ActiveSnap {
     pub gesture: Gesture,
     pub start: [f64; 2],
     pub targets: SnapTargets,
-    /// Layer alignments only (smart guides), used when View › Snap is off.
+    /// Smart-guide alignments the drag may snap to when `targets` is empty: only with View › Snap
+    /// on, and only the kinds whose Snap To item is on (Layers, Document Bounds) (#5782).
     pub smart: SnapTargets,
+    /// Smart-guide alignments that are drawn but never snapped to (Smart Guides on, the snap that
+    /// would use them off): the magenta line appears only where edges already line up.
+    pub shown: SnapTargets,
     pub disabled: bool,
 }
 
@@ -80,6 +84,15 @@ fn smart_on(app: &PhotocraftApp) -> bool {
 
 fn snap_on(app: &PhotocraftApp) -> bool {
     app.ui.extras.snap
+}
+
+/// Smart-guide kinds that may snap: View › Snap on, and the matching Snap To item on (#5782).
+fn smart_snaps(snap: bool, opts: &SnapOptions, kind: SnapKind) -> bool {
+    snap && match kind {
+        SnapKind::LayerEdge | SnapKind::LayerCenter => opts.layers,
+        SnapKind::DocumentCenter | SnapKind::DocumentEdge => opts.document,
+        _ => false,
+    }
 }
 
 /// Targets of the active document (smart = layer alignments only).
@@ -254,8 +267,24 @@ fn begin(app: &mut PhotocraftApp, p: [f64; 2], mods: egui::Modifiers) {
         // A moving selection never snaps back to where it started.
         targets = targets.filtered(|k| k != SnapKind::Selection);
     }
-    let smart = if matches!(gesture, Gesture::Move { .. }) && smart_on(app) { build(app, &exclude, true) } else { SnapTargets::default() };
-    app.prefs_rt.snap = Some(ActiveSnap { gesture, start: p, targets, smart, disabled: false });
+    let all_smart = if matches!(gesture, Gesture::Move { .. }) && smart_on(app) { build(app, &exclude, true) } else { SnapTargets::default() };
+    let (snap, opts) = (snap_on(app), options(app));
+    let smart = all_smart.filtered(|k| smart_snaps(snap, &opts, k));
+    let shown = all_smart.filtered(|k| !smart_snaps(snap, &opts, k));
+    let count = |t: &SnapTargets| t.x.len() + t.y.len();
+    log::debug!(
+        "snap: {gesture:?} begins; View Snap {}, Snap To layers {} document {} guides {} grid {}, Smart Guides {}; {} targets, {} smart that snap, {} smart shown only",
+        if snap { "on" } else { "off" },
+        opts.layers,
+        opts.document,
+        opts.guides,
+        opts.grid,
+        if smart_on(app) { "on" } else { "off" },
+        count(&targets),
+        count(&smart),
+        count(&shown)
+    );
+    app.prefs_rt.snap = Some(ActiveSnap { gesture, start: p, targets, smart, shown, disabled: false });
 }
 
 /// Snap a guide drag that ⌘ with a selection tool starts at `p` (`canvas::command_guide_at`,
@@ -263,7 +292,8 @@ fn begin(app: &mut PhotocraftApp, p: [f64; 2], mods: egui::Modifiers) {
 pub fn begin_guide(app: &mut PhotocraftApp, p: [f64; 2]) {
     app.prefs_rt.snap_lines.clear();
     let targets = if snap_on(app) { build(app, &[], false).filtered(|k| k != SnapKind::Guide) } else { SnapTargets::default() };
-    app.prefs_rt.snap = Some(ActiveSnap { gesture: Gesture::Guide, start: p, targets, smart: SnapTargets::default(), disabled: false });
+    app.prefs_rt.snap =
+        Some(ActiveSnap { gesture: Gesture::Guide, start: p, targets, smart: SnapTargets::default(), shown: SnapTargets::default(), disabled: false });
 }
 
 /// Round to whole pixels when Preferences › Tools asks vector tools and transforms to snap to
@@ -299,7 +329,20 @@ fn apply(app: &mut PhotocraftApp, p: [f64; 2], mods: egui::Modifiers) -> [f64; 2
             let d = [p[0] - snap.start[0], p[1] - snap.start[1]];
             let moved = [rect[0] + d[0], rect[1] + d[1], rect[2] + d[0], rect[3] + d[1]];
             let set = if snap.targets.is_empty() { &snap.smart } else { &snap.targets };
-            let (adj, lines) = set.snap_rect(moved, tol);
+            let (adj, mut lines) = set.snap_rect(moved, tol);
+            if lines.is_empty() && !snap.shown.is_empty() {
+                // Smart Guides on, their snap off: draw the alignment only where the edges already
+                // meet (within half a pixel), and leave the drag where the pointer put it.
+                lines = snap.shown.snap_rect(moved, 0.5).1;
+            }
+            if adj != [0.0, 0.0] {
+                let kinds: Vec<SnapKind> = lines.iter().map(|l| l.kind).collect();
+                log::debug!(
+                    "snap: {:?} moved by {adj:?} to {kinds:?} ({} targets)",
+                    snap.gesture,
+                    if snap.targets.is_empty() { "smart" } else { "View › Snap To" }
+                );
+            }
             ([p[0] + adj[0], p[1] + adj[1]], lines)
         }
     };
@@ -650,6 +693,48 @@ mod tests {
             crate::canvas::tool_event(&mut app, ToolEvent::Move { x: 323.0, y: 100.0, pressure: 1.0 }, m);
             crate::canvas::tool_event(&mut app, ToolEvent::Up { x: 323.0, y: 100.0 }, m);
             assert_eq!(mover_bounds(&app).x0, 300, "{before}: snapped to the target's edge");
+        }
+    }
+
+    /// #5782: View › Snap off stops the Move tool snapping even with Smart Guides on (the
+    /// default); the magenta line still shows where edges really meet.
+    #[test]
+    fn view_snap_off_stops_smart_guide_snapping() {
+        let mut app = app_with_box();
+        app.ui.tool = Tool::Move;
+        app.ui.view.show.smart_guides = true;
+        app.ui.extras.snap = false;
+        app.ui.tool_options.move_auto_select = false;
+        let m = egui::Modifiers::NONE;
+        crate::canvas::tool_event(&mut app, ToolEvent::Down { x: 60.0, y: 60.0, pressure: 1.0 }, m);
+        crate::canvas::tool_event(&mut app, ToolEvent::Move { x: 323.0, y: 100.0, pressure: 1.0 }, m);
+        assert!(app.prefs_rt.snap_lines.is_empty(), "3 px off: no line, {:?}", app.prefs_rt.snap_lines);
+        crate::canvas::tool_event(&mut app, ToolEvent::Up { x: 323.0, y: 100.0 }, m);
+        assert_eq!(mover_bounds(&app).x0, 303, "moved freely, not onto the target's edge at 300");
+        // Dragged exactly onto the edge: Smart Guides still draws the alignment.
+        crate::canvas::tool_event(&mut app, ToolEvent::Down { x: 60.0, y: 60.0, pressure: 1.0 }, m);
+        crate::canvas::tool_event(&mut app, ToolEvent::Move { x: 57.0, y: 60.0, pressure: 1.0 }, m);
+        assert!(app.prefs_rt.snap_lines.iter().any(|l| l.vertical && l.pos == 300.0 && l.kind.is_smart()), "{:?}", app.prefs_rt.snap_lines);
+        crate::canvas::tool_event(&mut app, ToolEvent::Up { x: 57.0, y: 60.0 }, m);
+        assert_eq!(mover_bounds(&app).x0, 300);
+    }
+
+    /// #5782, the Snap To case: View › Snap on with every Snap To item off left the smart-guide
+    /// targets as the fallback, so the layer still snapped. Snap To › Layers alone brings it back.
+    #[test]
+    fn snap_to_none_stops_smart_guide_snapping() {
+        for (layers, x0) in [(false, 303), (true, 300)] {
+            let mut app = app_with_box();
+            app.ui.tool = Tool::Move;
+            app.ui.view.show.smart_guides = true;
+            app.ui.extras.snap = true;
+            app.ui.tool_options.move_auto_select = false;
+            // View › Snap To › None, then (second pass) Snap To › Layers.
+            app.ui.view.snap_to = crate::view_cmds::SnapTo { guides: false, grid: false, layers, slices: false, document_bounds: false };
+            let m = egui::Modifiers::NONE;
+            crate::canvas::tool_event(&mut app, ToolEvent::Down { x: 60.0, y: 60.0, pressure: 1.0 }, m);
+            crate::canvas::tool_event(&mut app, ToolEvent::Up { x: 323.0, y: 100.0 }, m);
+            assert_eq!(mover_bounds(&app).x0, x0, "Snap To › Layers {layers}");
         }
     }
 
