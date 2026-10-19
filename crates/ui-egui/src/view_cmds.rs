@@ -302,7 +302,7 @@ fn remembered(app: &PhotocraftApp) -> Value {
     if e.guides != def.guides {
         m.insert("guides".into(), Value::Bool(e.guides));
     }
-    // View › Snap itself (Lani's bug ian-1019-b, second report: turned off, it came back on at
+    // View › Snap itself (bug ian-1019-b, a tester's second report: turned off, it came back on at
     // the next launch, so the layer snapped to the canvas centre and edges again).
     if e.snap != def.snap {
         m.insert("snap".into(), Value::Bool(e.snap));
