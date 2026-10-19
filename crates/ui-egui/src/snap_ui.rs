@@ -292,7 +292,8 @@ fn begin(app: &mut PhotocraftApp, p: [f64; 2], mods: egui::Modifiers) {
 pub fn begin_guide(app: &mut PhotocraftApp, p: [f64; 2]) {
     app.prefs_rt.snap_lines.clear();
     let targets = if snap_on(app) { build(app, &[], false).filtered(|k| k != SnapKind::Guide) } else { SnapTargets::default() };
-    app.prefs_rt.snap = Some(ActiveSnap { gesture: Gesture::Guide, start: p, targets, smart: SnapTargets::default(), shown: SnapTargets::default(), disabled: false });
+    app.prefs_rt.snap =
+        Some(ActiveSnap { gesture: Gesture::Guide, start: p, targets, smart: SnapTargets::default(), shown: SnapTargets::default(), disabled: false });
 }
 
 /// Round to whole pixels when Preferences › Tools asks vector tools and transforms to snap to
@@ -336,7 +337,11 @@ fn apply(app: &mut PhotocraftApp, p: [f64; 2], mods: egui::Modifiers) -> [f64; 2
             }
             if adj != [0.0, 0.0] {
                 let kinds: Vec<SnapKind> = lines.iter().map(|l| l.kind).collect();
-                log::debug!("snap: {:?} moved by {adj:?} to {kinds:?} ({} targets)", snap.gesture, if snap.targets.is_empty() { "smart" } else { "View › Snap To" });
+                log::debug!(
+                    "snap: {:?} moved by {adj:?} to {kinds:?} ({} targets)",
+                    snap.gesture,
+                    if snap.targets.is_empty() { "smart" } else { "View › Snap To" }
+                );
             }
             ([p[0] + adj[0], p[1] + adj[1]], lines)
         }
