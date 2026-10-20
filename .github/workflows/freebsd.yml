@@ -17,6 +17,10 @@ on:
       - packaging/freebsd/**
       - packaging/env.sh
   workflow_dispatch:
+    inputs:
+      threads:
+        description: "--test-threads for the timing debug loop (1 or 5)"
+        default: "1"
 
 concurrency:
   group: freebsd-${{ github.ref }}
@@ -33,5 +37,20 @@ jobs:
       architectures: '["x86_64"]'
       craft-fonts-ref: abb83316d96aa59c1cf64784289e378fe9fa5695
       cargo-build-extra-args: "--features heif"
-      custom-test-command: "CARGO_PROFILE_DEV_DEBUG=0 cargo test --workspace --locked --features heif --exclude photocraft-ui-egui && CARGO_PROFILE_DEV_DEBUG=0 cargo test -p photocraft-ui-egui --locked --lib && CARGO_PROFILE_DEV_DEBUG=0 cargo test -p photocraft-ui-egui --locked --doc && CARGO_PROFILE_DEV_DEBUG=0 cargo test -p photocraft-ui-egui --locked --test '*' -- --test-threads=1"
+      custom-test-command: |
+        trap 'echo "=== DEBUG-END dmesg"; dmesg | tail -60; echo "=== DEBUG-END df"; df -h; echo "=== DEBUG-END cores"; ls -la *.core /var/tmp/*.core 2>/dev/null || true; for c in *.core; do [ -f "$c" ] || continue; lldb -c "$c" -b -o "bt all" 2>&1 | head -80 || true; done' EXIT
+        echo "=== DEBUG-START threads=${{ github.event.inputs.threads || '1' }}"
+        echo "=== DEBUG-START df"; df -h
+        sysctl hw.model hw.ncpu hw.physmem || true
+        ls -la /dev/dri 2>&1 || true
+        pkg info | grep -Ei 'mesa|vulkan|drm|llvm' || true
+        ulimit -c unlimited
+        export RUST_BACKTRACE=full RUST_MIN_STACK=16777216 WGPU_BACKEND_LOG=1
+        fails=0
+        for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+          echo "=== DEBUG-ITER $i threads=${{ github.event.inputs.threads || '1' }}"
+          CARGO_PROFILE_DEV_DEBUG=0 cargo test -p photocraft-gpu --locked --test timing -- --test-threads=${{ github.event.inputs.threads || '1' }} --nocapture || { fails=$((fails+1)); echo "=== DEBUG-ITER $i FAILED"; }
+        done
+        echo "=== DEBUG-RESULT fails=$fails of 20"
+        [ "$fails" -eq 0 ]
       run-package-check: true
