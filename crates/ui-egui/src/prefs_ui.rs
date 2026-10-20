@@ -3561,7 +3561,7 @@ mod tests {
         }
     }
 
-    /// Bug ian-1019-b, a tester's second report (Mac, 9c16417b): View › Snap turned off came back
+    /// Bug bug-1019-b, a tester's second report (Mac, 9c16417b): View › Snap turned off came back
     /// on at the next launch, so layers snapped to the canvas centre and edges again.
     #[test]
     fn view_snap_off_survives_a_restart() {

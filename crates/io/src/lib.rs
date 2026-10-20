@@ -52,6 +52,21 @@ pub mod linked;
 mod multichannel_map;
 mod ora;
 pub use ora::losses as ora_losses;
+
+/// What a PSD/PSB save of `doc` would leave out (Codex review PX1, 2026-10-19): the PSD writer
+/// keeps neither Window › Timeline nor a layer's video frames. Empty when nothing is lost.
+/// PhotoCraft's own format (.pcraft) keeps both.
+pub fn psd_losses(doc: &photocraft_doc::Document) -> Vec<String> {
+    let mut out = Vec::new();
+    if doc.timeline.is_some() {
+        out.push("the video timeline (Window › Timeline) is not saved in PSD/PSB".to_string());
+    }
+    let video: Vec<&str> = doc.walk().into_iter().filter(|(_, _, l)| l.video.is_some()).map(|(_, _, l)| l.name.as_str()).collect();
+    if !video.is_empty() {
+        out.push(format!("the video frames of {} layer(s) ({}) are not saved in PSD/PSB; only the current frame is kept", video.len(), video.join(", ")));
+    }
+    out
+}
 pub mod pattern_map;
 pub mod pdf;
 mod pdn;
@@ -458,6 +473,7 @@ fn export_stages(doc: &Document, name_or_ext: &str, opts: &ExportOptions, ctl: &
         if !doc.metadata.text.is_empty() {
             warnings.push("free-form text metadata is not supported by PSD/PSB; it will be dropped".into());
         }
+        warnings.extend(psd_losses(doc));
         warnings.extend(tiff_layers::strip_foreign_order_blocks(&mut file));
         if opts.image_previews {
             match psd_thumbnail::resource(doc) {
