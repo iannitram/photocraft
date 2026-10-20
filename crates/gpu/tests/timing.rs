@@ -35,6 +35,14 @@ fn block_on<F: std::future::Future>(f: F) -> F::Output {
     }
 }
 
+/// The five tests run on parallel threads, and each creates its own wgpu instance. Creating
+/// (and tearing down) Mesa/llvmpipe instances concurrently crashes the process with SIGSEGV on
+/// FreeBSD CI (14 of 20 runs with 5 threads, 0 of 20 with 1), so the tests take turns.
+fn serial() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 /// A real GPU with timestamp queries, or `None` with the reason printed.
 fn gpu() -> Option<(wgpu::Device, wgpu::Queue, Compositor)> {
     let options = wgpu::RequestAdapterOptions { power_preference: wgpu::PowerPreference::HighPerformance, ..Default::default() };
@@ -111,6 +119,7 @@ fn measure(device: &wgpu::Device, queue: &wgpu::Queue, comp: &mut Compositor, do
 
 #[test]
 fn gpu_time_tracks_execution_not_submission() {
+    let _serial = serial();
     let Some((device, queue, mut comp)) = gpu() else { return };
     let size = Size::new(3000, 2000);
     let doc = document(size);
@@ -164,6 +173,7 @@ fn gpu_time_tracks_execution_not_submission() {
 
 #[test]
 fn an_unmeasured_compositor_reports_nothing() {
+    let _serial = serial();
     let Some((device, queue, _)) = gpu() else { return };
     let mut comp = Compositor::new(&device);
     assert!(!comp.measures_gpu_time(), "timing is off until it is asked for");
@@ -175,6 +185,7 @@ fn an_unmeasured_compositor_reports_nothing() {
 
 #[test]
 fn a_refresh_that_submits_several_times_is_one_measurement() {
+    let _serial = serial();
     let Some((device, queue, mut comp)) = gpu() else { return };
     // A budget far below the document's layer pages makes the refresh evict as it goes, which is
     // what makes it submit in batches: the measurement must span all of them, not just the last.
@@ -208,6 +219,7 @@ fn a_refresh_that_submits_several_times_is_one_measurement() {
 
 #[test]
 fn refreshes_faster_than_the_readback_stay_valid() {
+    let _serial = serial();
     let Some((device, queue, mut comp)) = gpu() else { return };
     // Refreshes arriving before the last measurement has been read back must simply go
     // unmeasured. Mapping the readback buffer again while its first map is still pending is a
@@ -232,6 +244,7 @@ fn refreshes_faster_than_the_readback_stay_valid() {
 /// wrote no timestamps itself — and the compositor would silently never measure again.
 #[test]
 fn a_failed_refresh_that_recorded_nothing_keeps_the_timer_alive() {
+    let _serial = serial();
     let Some((device, queue, _)) = gpu() else { return };
     let mut timer = timing::GpuTimer::new(&device, &queue).expect("the device has timestamp queries");
 
