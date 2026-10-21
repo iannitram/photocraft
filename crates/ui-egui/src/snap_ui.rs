@@ -739,6 +739,19 @@ mod tests {
     }
 
     #[test]
+    fn view_snap_off_blocks_smart_guide_snapping() {
+        let mut app = app_with_box();
+        app.ui.tool = Tool::Move;
+        app.ui.view.show.smart_guides = true;
+        app.ui.extras.snap = false;
+        app.ui.tool_options.move_auto_select = false;
+        let m = egui::Modifiers::NONE;
+        crate::canvas::tool_event(&mut app, ToolEvent::Down { x: 60.0, y: 60.0, pressure: 1.0 }, m);
+        crate::canvas::tool_event(&mut app, ToolEvent::Up { x: 323.0, y: 100.0 }, m);
+        assert_eq!(mover_bounds(&app).x0, 303, "View › Snap off must not snap via smart guides");
+    }
+
+    #[test]
     fn ctrl_or_snap_off_disables_snapping() {
         let mut app = app_with_box();
         app.ui.tool = Tool::Move;
