@@ -69,9 +69,9 @@ mod print_portal;
 mod screen_color;
 mod services;
 // macOS gets one instance from LaunchServices (open-documents Apple events).
+mod self_logging;
 #[cfg(any(not(target_os = "macos"), test))]
 mod single_instance;
-mod self_logging;
 // Tablet support (macOS AppKit monitor, Linux X11/Wayland, Windows barrel button).
 mod tablet;
 mod ui_state;
