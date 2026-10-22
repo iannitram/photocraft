@@ -1292,7 +1292,7 @@ mod tests {
         assert!(matches!(&effects(&s)[1], Effect::OuterGlow(g) if g.size == 12.0));
         // Without `edit` the stroke starts over from the defaults.
         s.execute("layer.layerStyle.stroke", json!({"size": 2})).unwrap();
-        assert!(matches!(&effects(&s)[0], Effect::Stroke(st) if st.size == 2.0 && st.position != StrokePosition::Inside));
+        assert!(matches!(&effects(&s)[0], Effect::Stroke(st) if st.size == 2.0 && st.common.opacity == 1.0));
     }
 
     /// The gradient overlay and the gradient stroke keep their scale in Photoshop's 10-150 %.

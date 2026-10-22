@@ -173,7 +173,18 @@ pub(crate) fn edit_confirmed(app: &mut PhotocraftApp, id: LayerId, at: Option<[f
         }
         None => (0, n),
     };
-    app.ui.text_edit = Some(TextEdit { layer: id.0, document: active_doc_id(app), caret, anchor, session: key, created: false, mask: false, dragging: false, resize: None, preedit: None });
+    app.ui.text_edit = Some(TextEdit {
+        layer: id.0,
+        document: active_doc_id(app),
+        caret,
+        anchor,
+        session: key,
+        created: false,
+        mask: false,
+        dragging: false,
+        resize: None,
+        preedit: None,
+    });
     enter_type_tool(app, id);
     if at.is_some() && !previous_tool.is_type() {
         app.ui.text_edit_return_tool = Some(previous_tool);
