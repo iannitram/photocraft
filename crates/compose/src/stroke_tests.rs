@@ -21,7 +21,7 @@ fn px(doc: &Document, x: i32, y: i32) -> [f32; 4] {
 }
 
 fn stroke(size: f32, position: StrokePosition, paint: FxPaint) -> Effect {
-    Effect::Stroke(StrokeFx { common: FxCommon::new(BlendMode::Normal, 1.0), size, position, paint })
+    Effect::Stroke(StrokeFx { common: FxCommon::new(BlendMode::Normal, 1.0), size, position, paint, overprint: false })
 }
 
 fn blue() -> FxPaint {
@@ -31,7 +31,7 @@ fn blue() -> FxPaint {
 /// A shape layer over the square `x0..x1` with its Photoshop-style cached pixels.
 fn shape(x0: f64, x1: f64, fill: Fill, stroke: Option<ShapeStroke>) -> Layer {
     let path = Path::new(vec![Subpath::polygon(&[(x0, x0), (x1, x0), (x1, x1), (x0, x1)])]);
-    let mut sh = ShapeLayer { path, fill: Some(fill), stroke, live: None, cache: None, psd_raw: None };
+    let mut sh = ShapeLayer { path, fill: Some(fill), stroke, live: None, cache: None, psd_raw: None, ..ShapeLayer::default() };
     sh.cache = Some(photocraft_vector::render_shape(&sh, PixelFormat::RGBA8, Rect::new(0, 0, 40, 40)));
     Layer::new("shape", LayerContent::Shape(sh))
 }
@@ -45,6 +45,7 @@ fn gradient_shape(width: u32, height: u32) -> ShapeLayer {
         live: None,
         cache: None,
         psd_raw: None,
+        ..ShapeLayer::default()
     }
 }
 
@@ -234,7 +235,15 @@ fn hairline_vector_stroke_keeps_the_files_edge_pixel_colour() {
         let mut cache = photocraft_raster::Surface::new(fmt);
         cache.fill_rect(Rect::new(10, 10, 30, 30), &[edge, edge, edge, 1.0]);
         cache.fill_rect(Rect::new(11, 11, 29, 29), &[fill, fill, fill, 1.0]);
-        let sh = ShapeLayer { path, fill: Some(Fill::Solid(Color::rgb(fill, fill, fill))), stroke: Some(vs), live: None, cache: Some(cache), psd_raw: None };
+        let sh = ShapeLayer {
+            path,
+            fill: Some(Fill::Solid(Color::rgb(fill, fill, fill))),
+            stroke: Some(vs),
+            live: None,
+            cache: Some(cache),
+            psd_raw: None,
+            ..ShapeLayer::default()
+        };
         let mut l = Layer::new("shape", LayerContent::Shape(sh));
         // Any layer effect sends the shape through the fill/stroke split.
         l.effects.items = vec![Effect::default_drop_shadow()];
@@ -252,7 +261,7 @@ fn hairline_vector_stroke_keeps_the_files_edge_pixel_colour() {
 fn stroked_pixels(d: &mut Document, common: FxCommon, position: StrokePosition) {
     let mut l = Layer::raster("sq", PixelFormat::RGBA8);
     l.surface_mut().unwrap().fill_rect(Rect::new(10, 10, 30, 30), &[0.0, 0.0, 1.0, 1.0]);
-    l.effects.items = vec![Effect::Stroke(StrokeFx { common, size: 1.0, position, paint: FxPaint::Color(Color::BLACK) })];
+    l.effects.items = vec![Effect::Stroke(StrokeFx { common, size: 1.0, position, overprint: false, paint: FxPaint::Color(Color::BLACK) })];
     d.layers.push(l);
 }
 
@@ -284,6 +293,7 @@ fn stroke_below_full_opacity_shows_the_backdrop_not_the_fill() {
         common: FxCommon::new(BlendMode::Normal, 0.5),
         size: 2.0,
         position: StrokePosition::Center,
+        overprint: false,
         paint: FxPaint::Color(Color::BLACK),
     })];
     d.layers.push(l);
@@ -301,12 +311,25 @@ fn stroke_replacement_leaves_full_opacity_and_other_modes_alone() {
     let mut d = doc(40, 40);
     stroked_pixels(&mut d, FxCommon::new(BlendMode::Multiply, 0.5), StrokePosition::Inside);
     assert!(close4(px(&d, 10, 20), [0.0, 0.0, 0.5, 1.0]), "{:?}", px(&d, 10, 20));
-    assert!(effects::stroke_replaces(&StrokeFx { common: FxCommon::new(BlendMode::Normal, 0.99), size: 1.0, position: StrokePosition::Inside, paint: blue() }));
-    assert!(!effects::stroke_replaces(&StrokeFx { common: FxCommon::new(BlendMode::Normal, 1.0), size: 1.0, position: StrokePosition::Inside, paint: blue() }));
+    assert!(effects::stroke_replaces(&StrokeFx {
+        common: FxCommon::new(BlendMode::Normal, 0.99),
+        size: 1.0,
+        position: StrokePosition::Inside,
+        overprint: false,
+        paint: blue()
+    }));
+    assert!(!effects::stroke_replaces(&StrokeFx {
+        common: FxCommon::new(BlendMode::Normal, 1.0),
+        size: 1.0,
+        position: StrokePosition::Inside,
+        overprint: false,
+        paint: blue()
+    }));
     assert!(!effects::stroke_replaces(&StrokeFx {
         common: FxCommon::new(BlendMode::Multiply, 0.5),
         size: 1.0,
         position: StrokePosition::Inside,
+        overprint: false,
         paint: blue()
     }));
 }
