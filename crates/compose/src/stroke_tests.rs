@@ -261,7 +261,7 @@ fn hairline_vector_stroke_keeps_the_files_edge_pixel_colour() {
 fn stroked_pixels(d: &mut Document, common: FxCommon, position: StrokePosition) {
     let mut l = Layer::raster("sq", PixelFormat::RGBA8);
     l.surface_mut().unwrap().fill_rect(Rect::new(10, 10, 30, 30), &[0.0, 0.0, 1.0, 1.0]);
-    l.effects.items = vec![Effect::Stroke(StrokeFx { common, size: 1.0, position, paint: FxPaint::Color(Color::BLACK) })];
+    l.effects.items = vec![Effect::Stroke(StrokeFx { common, size: 1.0, position, overprint: false, paint: FxPaint::Color(Color::BLACK) })];
     d.layers.push(l);
 }
 
@@ -293,6 +293,7 @@ fn stroke_below_full_opacity_shows_the_backdrop_not_the_fill() {
         common: FxCommon::new(BlendMode::Normal, 0.5),
         size: 2.0,
         position: StrokePosition::Center,
+        overprint: false,
         paint: FxPaint::Color(Color::BLACK),
     })];
     d.layers.push(l);
@@ -310,12 +311,25 @@ fn stroke_replacement_leaves_full_opacity_and_other_modes_alone() {
     let mut d = doc(40, 40);
     stroked_pixels(&mut d, FxCommon::new(BlendMode::Multiply, 0.5), StrokePosition::Inside);
     assert!(close4(px(&d, 10, 20), [0.0, 0.0, 0.5, 1.0]), "{:?}", px(&d, 10, 20));
-    assert!(effects::stroke_replaces(&StrokeFx { common: FxCommon::new(BlendMode::Normal, 0.99), size: 1.0, position: StrokePosition::Inside, paint: blue() }));
-    assert!(!effects::stroke_replaces(&StrokeFx { common: FxCommon::new(BlendMode::Normal, 1.0), size: 1.0, position: StrokePosition::Inside, paint: blue() }));
+    assert!(effects::stroke_replaces(&StrokeFx {
+        common: FxCommon::new(BlendMode::Normal, 0.99),
+        size: 1.0,
+        position: StrokePosition::Inside,
+        overprint: false,
+        paint: blue()
+    }));
+    assert!(!effects::stroke_replaces(&StrokeFx {
+        common: FxCommon::new(BlendMode::Normal, 1.0),
+        size: 1.0,
+        position: StrokePosition::Inside,
+        overprint: false,
+        paint: blue()
+    }));
     assert!(!effects::stroke_replaces(&StrokeFx {
         common: FxCommon::new(BlendMode::Multiply, 0.5),
         size: 1.0,
         position: StrokePosition::Inside,
+        overprint: false,
         paint: blue()
     }));
 }
