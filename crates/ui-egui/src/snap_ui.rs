@@ -334,7 +334,7 @@ fn pixel_round(app: &PhotocraftApp, p: [f64; 2]) -> [f64; 2] {
 fn apply(app: &mut PhotocraftApp, p: [f64; 2], mods: egui::Modifiers) -> [f64; 2] {
     let tol = tolerance(app);
     let Some(snap) = app.prefs_rt.snap.as_ref() else { return p };
-    if !snap_on(app) || snap.disabled {
+    if snap.disabled {
         app.prefs_rt.snap_lines.clear();
         return p;
     }
