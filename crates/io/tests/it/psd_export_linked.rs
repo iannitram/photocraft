@@ -1,7 +1,8 @@
 //! PSD export embeds a linked smart object's file; a link that names something other than a
 //! regular file (a crafted document's `/dev/zero`, a directory) must fail cleanly, not read
 //! forever.
-mod common;
+
+use crate::common;
 
 use common::*;
 use photocraft_color::{ColorMode, SampleType};
