@@ -1333,14 +1333,14 @@ mod tests {
     #[test]
     fn edit_keeps_the_settings_not_named() {
         let mut s = session();
-        s.execute("layer.layerStyle.stroke", json!({"size": 7, "position": "inside", "color": "#00ff00", "opacity": 50})).unwrap();
+        s.execute("layer.layerStyle.stroke", json!({"size": 7, "position": "outside", "color": "#00ff00", "opacity": 50})).unwrap();
         let r = s.execute("layer.layerStyle.stroke", json!({"size": 9, "edit": true})).unwrap();
         assert_eq!(r["edited"], json!(true), "{r}");
         assert_eq!(effects(&s).len(), 1);
         match &effects(&s)[0] {
             Effect::Stroke(st) => {
                 assert_eq!(st.size, 9.0);
-                assert_eq!(st.position, StrokePosition::Inside);
+                assert_eq!(st.position, StrokePosition::Outside);
                 assert_eq!(st.common.opacity, 0.5);
                 assert_eq!(st.paint, FxPaint::Color(Color::rgb(0.0, 1.0, 0.0)));
             }
@@ -1355,7 +1355,7 @@ mod tests {
         assert!(matches!(&effects(&s)[1], Effect::OuterGlow(g) if g.size == 12.0));
         // Without `edit` the stroke starts over from the defaults.
         s.execute("layer.layerStyle.stroke", json!({"size": 2})).unwrap();
-        assert!(matches!(&effects(&s)[0], Effect::Stroke(st) if st.size == 2.0 && st.position != StrokePosition::Inside));
+        assert!(matches!(&effects(&s)[0], Effect::Stroke(st) if st.size == 2.0 && st.position != StrokePosition::Outside));
     }
 
     /// The gradient overlay and the gradient stroke keep their scale in Photoshop's 10-150 %.

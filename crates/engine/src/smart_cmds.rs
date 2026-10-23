@@ -1045,10 +1045,15 @@ pub fn replace_contents_fit(s: &mut Session, id: LayerId, file_name: &str, bytes
             (Some(was), Some(now)) => format!(" and now covers {} x {} px on the canvas (was {} x {})", now.width(), now.height(), was.width(), was.height()),
             _ => String::new(),
         };
-        out["warnings"] = json!([format!(
+        // After upstream's unapplied-filter warnings from `set_shared_source`, not instead of them.
+        let note = format!(
             "the new contents are {} x {} px, the old were {} x {} px: the layer keeps its scale{covers}",
             new_size.width, new_size.height, o.width, o.height
-        )]);
+        );
+        match out["warnings"].as_array_mut() {
+            Some(list) => list.push(json!(note)),
+            None => out["warnings"] = json!([note]),
+        }
     }
     Ok(out)
 }

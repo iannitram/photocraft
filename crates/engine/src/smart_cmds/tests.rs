@@ -1269,7 +1269,7 @@ fn replace_contents_reports_a_size_change_and_fit_keeps_the_frame() {
     let r = s.execute("layer.smartObjects.replaceContents", json!({"path": same})).unwrap();
     assert_eq!(r["contentsSize"], json!([40, 20]), "{r}");
     assert_eq!(r["previousContentsSize"], json!([40, 20]), "{r}");
-    assert!(r.get("warnings").is_none(), "{r}");
+    assert!(r["warnings"].as_array().is_none_or(|w| w.is_empty()), "{r}");
     assert!(near(rect(&r["bounds"]), FRAME) && near(rect(&r["previousBounds"]), FRAME), "{r}");
 
     // Another size, no `fit`: the scale is kept (20 x 20 at 50 % = 10 x 10) and the result warns.
@@ -1288,7 +1288,7 @@ fn replace_contents_reports_a_size_change_and_fit_keeps_the_frame() {
     // fills the frame's width and overflows its height by 5 px on each side.
     let mut s = placed();
     let r = s.execute("layer.smartObjects.replaceContents", json!({"path": square, "fit": "cover"})).unwrap();
-    assert!(r.get("warnings").is_none(), "{r}");
+    assert!(r["warnings"].as_array().is_none_or(|w| w.is_empty()), "{r}");
     assert_eq!(rect(&r["bounds"]), [10, 1, 30, 21], "{r}");
     let sm = active_smart(&s);
     assert_eq!(sm.transform.m, [1.0, 0.0, 0.0, 1.0, 10.0, 1.0]);
@@ -1297,7 +1297,7 @@ fn replace_contents_reports_a_size_change_and_fit_keeps_the_frame() {
     // "contain": scaled by 1 (the smaller ratio) and centred: 10 x 10 in the middle of the frame.
     let mut s = placed();
     let r = s.execute("layer.smartObjects.replaceContents", json!({"path": square, "fit": "contain"})).unwrap();
-    assert!(r.get("warnings").is_none(), "{r}");
+    assert!(r["warnings"].as_array().is_none_or(|w| w.is_empty()), "{r}");
     assert!(near(rect(&r["bounds"]), [15, 6, 25, 16]), "{r}");
 
     // Anything else is refused before the document is touched.
