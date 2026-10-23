@@ -126,8 +126,18 @@ pub fn edit_active(app: &mut PhotocraftApp) -> Result<Option<u64>, String> {
         if let Some(dialog) = begin_edit(app, id, &key, Some(None))? {
             return Ok(Some(dialog));
         }
-        app.ui.text_edit =
-            Some(TextEdit { layer: id.0, document: active_doc_id(app), caret: n, anchor: 0, session: key, created: false, mask: false, dragging: false, resize: None, preedit: None });
+        app.ui.text_edit = Some(TextEdit {
+            layer: id.0,
+            document: active_doc_id(app),
+            caret: n,
+            anchor: 0,
+            session: key,
+            created: false,
+            mask: false,
+            dragging: false,
+            resize: None,
+            preedit: None,
+        });
     } else if let Some(ed) = app.ui.text_edit.as_mut() {
         ed.anchor = 0;
         ed.caret = n;
@@ -189,8 +199,18 @@ pub fn edit_at(app: &mut PhotocraftApp, x: f64, y: f64) -> bool {
         Err(_) => return false,
     }
     let off = hit_offset(app, id, x, y);
-    app.ui.text_edit =
-        Some(TextEdit { layer: id.0, document: active_doc_id(app), caret: off, anchor: off, session: key, created: false, mask: false, dragging: false, resize: None, preedit: None });
+    app.ui.text_edit = Some(TextEdit {
+        layer: id.0,
+        document: active_doc_id(app),
+        caret: off,
+        anchor: off,
+        session: key,
+        created: false,
+        mask: false,
+        dragging: false,
+        resize: None,
+        preedit: None,
+    });
     enter_type_tool(app, id);
     if !previous_tool.is_type() {
         app.ui.text_edit_return_tool = Some(previous_tool);
