@@ -186,6 +186,33 @@ pub fn source_decode_count(bytes: &[u8], fmt: PixelFormat) -> u32 {
     SOURCE_CACHE.lock().ok().and_then(|c| c.iter().find(|e| e.key == key).map(|e| e.decodes)).unwrap_or(0)
 }
 
+pub(crate) fn take_caches(layers: &mut [Layer]) -> Vec<(LayerId, Surface)> {
+    let mut out = Vec::new();
+    for l in layers {
+        match &mut l.content {
+            LayerContent::Smart(sm) => out.extend(sm.cache.take().map(|c| (l.id, c))),
+            LayerContent::Group(g) => out.extend(take_caches(&mut g.children)),
+            _ => {}
+        }
+    }
+    out
+}
+
+pub(crate) fn restore_unrendered<E>(
+    doc: &mut Document,
+    taken: Vec<(LayerId, Surface)>,
+    mut fallback: impl FnMut(&Surface) -> std::result::Result<Surface, E>,
+) -> std::result::Result<(), E> {
+    for (id, cache) in taken {
+        if let Some(LayerContent::Smart(sm)) = doc.layer_mut(id).map(|l| &mut l.content)
+            && sm.cache.is_none()
+        {
+            sm.cache = Some(fallback(&cache)?);
+        }
+    }
+    Ok(())
+}
+
 fn buffer_to_surface(buf: &photocraft_compose::Buffer, fmt: PixelFormat) -> Surface {
     let n = fmt.channels();
     let mut data = vec![0.0f32; buf.px.len() * n];
@@ -1003,6 +1030,13 @@ fn refit_map(old: Size, new: Size, fit: ReplaceFit) -> Option<Homography> {
     let (ow, oh, nw, nh) = (f64::from(old.width), f64::from(old.height), f64::from(new.width), f64::from(new.height));
     let k = if fit == ReplaceFit::Cover { (ow / nw).max(oh / nh) } else { (ow / nw).min(oh / nh) };
     Some(Homography([k, 0.0, (ow - k * nw) / 2.0, 0.0, k, (oh - k * nh) / 2.0, 0.0, 0.0, 1.0]))
+}
+
+/// Replace Contents with a file the caller already read, for the smart object `p` names (`layer`,
+/// else the active layer): the body of the command minus its ambient path read (#8061).
+pub fn replace_contents_from_bytes(s: &mut Session, p: &Value, file_name: &str, bytes: Vec<u8>) -> Result<Value> {
+    let id = layer_param(s, p)?;
+    replace_contents_bytes(s, id, file_name, bytes)
 }
 
 /// Replace Contents from a file's name and bytes: what the desktop and web file pickers hand over.

@@ -78,6 +78,7 @@ mod ui_state;
 // Pure logic is tested on every platform; only Linux asks the compositor.
 #[cfg(any(target_os = "linux", test))]
 mod wayland_outputs;
+mod updates;
 mod window_frame;
 
 use photocraft_engine::Session;
