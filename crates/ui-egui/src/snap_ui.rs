@@ -303,7 +303,8 @@ fn begin(app: &mut PhotocraftApp, p: [f64; 2], mods: egui::Modifiers) {
         // A moving selection never snaps back to where it started.
         targets = targets.filtered(|k| k != SnapKind::Selection);
     }
-    let all_smart = if matches!(gesture, Gesture::Move { .. } | Gesture::CropImage) && smart_on(app) { build(app, &exclude, true) } else { SnapTargets::default() };
+    let all_smart =
+        if matches!(gesture, Gesture::Move { .. } | Gesture::CropImage) && smart_on(app) { build(app, &exclude, true) } else { SnapTargets::default() };
     let (snap, opts) = (snap_on(app), options(app));
     let smart = all_smart.filtered(|k| smart_snaps(snap, &opts, k));
     let shown = all_smart.filtered(|k| !smart_snaps(snap, &opts, k));
