@@ -38,7 +38,7 @@ fn help_and_the_version_create_no_folder_and_no_log() {
     let settings = d.join("settings");
     let quiet: &[&[&str]] = &[
         &["--version"],
-        &["version"],
+        &["-V"],
         &["--help"],
         &["-h"],
         &["help"],

@@ -1320,6 +1320,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-log"
+version = "0.1.0"
+dependencies = [
+ "craft-stage",
+ "log",
+]
+
+[[package]]
 name = "craft-print"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=3d37da389a3618ab9b76109da11416e9ca4ea719#3d37da389a3618ab9b76109da11416e9ca4ea719"
@@ -1331,6 +1339,10 @@ dependencies = [
  "winprint",
  "winsafe",
 ]
+
+[[package]]
+name = "craft-stage"
+version = "0.1.0"
 
 [[package]]
 name = "craft-ui"
@@ -4749,6 +4761,7 @@ dependencies = [
  "chrono",
  "clap",
  "core-graphics2",
+ "craft-log",
  "dispatch2",
  "eframe",
  "egui",
@@ -4780,6 +4793,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "ureq",
+ "wayland-client",
  "winit",
  "winresource",
  "winsafe",
@@ -4803,6 +4817,8 @@ dependencies = [
 name = "photocraft-algo"
 version = "0.15.1"
 dependencies = [
+ "craft-stage",
+ "log",
  "photocraft-color",
  "photocraft-geom",
  "photocraft-raster",
@@ -4844,6 +4860,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "clap_mangen",
+ "craft-log",
  "photocraft-automation",
  "photocraft-codecs",
  "photocraft-engine",
@@ -5163,6 +5180,7 @@ name = "photocraft-ui-egui"
 version = "0.15.1"
 dependencies = [
  "base64 0.22.1",
+ "craft-log",
  "craft-print",
  "craft-ui",
  "eframe",

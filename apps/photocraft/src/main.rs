@@ -179,7 +179,7 @@ fn main() -> eframe::Result {
         match logger.attach_dir(&dir.join("logs")) {
             Ok(path) => {
                 self_logging::log_dir(&dir.join("logs"));
-                log::info!("PhotoCraft {}, log file {}", photocraft_engine::build_info::long_version(), path.display())
+                log::info!("PhotoCraft {}, log file {}", self_logging::version_text(), path.display())
             }
             // Standard error only by now (`attach_dir` gave up on the file); unlike `eprintln!`, never panics.
             Err(e) => log::warn!("no log file: {e}"),
