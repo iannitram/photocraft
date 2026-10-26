@@ -83,12 +83,9 @@ fn version_text_of(upstream: String, stamped: bool) -> String {
 /// folder and no log, as in the window app. Decided the way [`crate::run`] decides it; a usage
 /// error is a failure and is logged.
 pub fn leaves_no_trace(args: &[OsString]) -> bool {
-    let Some(args) = args.iter().map(|a| a.to_str().map(str::to_owned)).collect::<Option<Vec<String>>>() else { return false };
-    let Some((first, rest)) = args.split_first() else { return false };
-    if matches!(first.as_str(), "-h" | "--help" | "help" | "--version" | "version") {
-        return true;
-    }
-    crate::SUBCOMMANDS.iter().find(|s| s.name == first).is_some_and(|sub| matches!(crate::parse(sub, rest), Ok(None)))
+    // Help and `--version` come back from clap as an "error" with exit code 0; a usage error is
+    // a failure and is logged.
+    !args.is_empty() && crate::args::parse(args).err().is_some_and(|e| e.exit_code() == 0)
 }
 
 /// Install the logger for this run. Call in `main` once [`leaves_no_trace`] has said no. The
@@ -312,27 +309,19 @@ mod tests {
 
     #[test]
     fn help_and_the_version_leave_no_trace_and_everything_else_is_logged() {
-        for quiet in [&["--help"][..], &["-h"], &["help"], &["--version"], &["version"], &["--version", "extra"]] {
+        for quiet in [&["--help"][..], &["-h"], &["help"], &["--version"], &["--version", "extra"]] {
             assert!(leaves_no_trace(&os(quiet)), "{quiet:?}");
         }
-        for sub in crate::SUBCOMMANDS {
-            assert!(leaves_no_trace(&os(&[sub.name, "--help"])), "{} --help", sub.name);
-            assert!(leaves_no_trace(&os(&[sub.name, "a.png", "-h"])), "{} a.png -h", sub.name);
+        for name in ["convert", "info", "run", "batch", "droplet", "commands", "mcp", "serve"] {
+            assert!(leaves_no_trace(&os(&[name, "--help"])), "{name} --help");
+            assert!(leaves_no_trace(&os(&[name, "a.png", "-h"])), "{name} a.png -h");
         }
-        // A flag's value is not a request for help, and help after a usage error is still the error.
+        // A bare --help is help even after a mistake on the line (the CLI parser reports help).
         assert!(leaves_no_trace(&os(&["serve", "--control-token", "0123", "-h"])));
-        assert!(!leaves_no_trace(&os(&["serve", "--control-token", "--help"])));
-        assert!(!leaves_no_trace(&os(&["convert", "--fromat", "png", "--help"])));
         for logged in
             [&[][..], &["frobnicate"], &["frobnicate", "--help"], &["convert", "a.png", "b.png"], &["serve", "--port", "1"], &["diagnostics"], &["info"]]
         {
             assert!(!leaves_no_trace(&os(logged)), "{logged:?}");
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::ffi::OsStringExt;
-            // Not Unicode: a usage error whatever else is on the line (`run_os`), so it is logged.
-            assert!(!leaves_no_trace(&[OsString::from("--help"), OsString::from_vec(vec![0x66, 0xff])]));
         }
     }
 

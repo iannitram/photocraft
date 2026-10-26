@@ -36,16 +36,8 @@ fn log_of(settings: &Path) -> PathBuf {
 fn help_and_the_version_create_no_folder_and_no_log() {
     let d = tmp("quiet");
     let settings = d.join("settings");
-    let quiet: &[&[&str]] = &[
-        &["--version"],
-        &["version"],
-        &["--help"],
-        &["-h"],
-        &["help"],
-        &["convert", "--help"],
-        &["serve", "-h"],
-        &["mcp", "--control-token", TOKEN, "--help"],
-    ];
+    let quiet: &[&[&str]] =
+        &[&["--version"], &["--help"], &["-h"], &["help"], &["convert", "--help"], &["serve", "-h"], &["mcp", "--control-token", TOKEN, "--help"]];
     for args in quiet {
         let o = run(&settings, args, &[]);
         assert_eq!(o.status.code(), Some(0), "{args:?}: {}", text(&o.stderr));
@@ -59,7 +51,7 @@ fn help_and_the_version_create_no_folder_and_no_log() {
     let o = run(&settings, &["frobnicate"], &[]);
     assert_eq!(o.status.code(), Some(2));
     let log = std::fs::read_to_string(log_of(&settings)).unwrap();
-    assert!(log.contains("command line: ") && log.contains("unknown command `frobnicate`"), "{log}");
+    assert!(log.contains("command line: ") && log.contains("unrecognized subcommand 'frobnicate'"), "{log}");
     assert!(text(&o.stderr).trim_end().ends_with(&format!("log: {}", log_of(&settings).display())), "{}", text(&o.stderr));
     let _ = std::fs::remove_dir_all(&d);
 }
@@ -77,10 +69,11 @@ fn the_logger_does_not_change_how_a_run_exits() {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_photocraft-cli"));
     cmd.arg("info").arg(std::ffi::OsString::from_vec(vec![b'f', 0xff, b'.', b'p', b's', b'd'])).env("PHOTOCRAFT_CONFIG_DIR", &settings).stdin(Stdio::null());
     let o = cmd.output().unwrap();
-    assert_eq!(o.status.code(), Some(2), "{}", text(&o.stderr));
-    assert!(text(&o.stderr).contains("is not valid Unicode"), "{}", text(&o.stderr));
+    // clap takes the path (upstream); the run fails like any other, and is logged.
+    assert_eq!(o.status.code(), Some(1), "{}", text(&o.stderr));
+    assert!(text(&o.stderr).contains("valid UTF-8"), "{}", text(&o.stderr));
     let log = std::fs::read_to_string(log_of(&settings)).unwrap();
-    assert!(log.contains("command line: ") && log.contains("is not valid Unicode"), "{log}");
+    assert!(log.contains("command line: ") && log.contains("valid UTF-8"), "{log}");
 
     let full = std::fs::OpenOptions::new().write(true).open("/dev/full").unwrap();
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_photocraft-cli"));

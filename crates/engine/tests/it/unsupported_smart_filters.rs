@@ -57,8 +57,10 @@ fn replacing_contents_reports_the_filters_it_cannot_apply() {
     let (mut s, id) = mockup();
     let r = smart_cmds::replace_contents_bytes(&mut s, id, "new.png", png()).unwrap();
     let warnings = r["warnings"].as_array().unwrap();
-    assert_eq!(warnings.len(), 1, "{r}");
+    // The fork also warns about the contents' size change (the mockup's filter is the first).
+    assert_eq!(warnings.len(), 2, "{r}");
     assert!(warnings[0].as_str().unwrap().contains("Sharpen"), "{r}");
+    assert!(warnings[1].as_str().unwrap().contains("the new contents are"), "{r}");
 }
 
 #[test]
