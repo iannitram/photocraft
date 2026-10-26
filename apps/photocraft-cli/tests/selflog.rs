@@ -36,16 +36,8 @@ fn log_of(settings: &Path) -> PathBuf {
 fn help_and_the_version_create_no_folder_and_no_log() {
     let d = tmp("quiet");
     let settings = d.join("settings");
-    let quiet: &[&[&str]] = &[
-        &["--version"],
-        &["version"],
-        &["--help"],
-        &["-h"],
-        &["help"],
-        &["convert", "--help"],
-        &["serve", "-h"],
-        &["mcp", "--control-token", TOKEN, "--help"],
-    ];
+    let quiet: &[&[&str]] =
+        &[&["--version"], &["-V"], &["--help"], &["-h"], &["help"], &["convert", "--help"], &["serve", "-h"], &["mcp", "--control-token", TOKEN, "--help"]];
     for args in quiet {
         let o = run(&settings, args, &[]);
         assert_eq!(o.status.code(), Some(0), "{args:?}: {}", text(&o.stderr));
