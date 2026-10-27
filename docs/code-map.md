@@ -2,7 +2,7 @@
 
 - Repo: iannitram/photocraft, a fork of storytold/photocraft (Rust, edition 2024, MIT OR Apache-2.0).
 - Kind: native layered image editor (Photoshop-style, clean-room) as a Cargo workspace, version 0.16.0, early alpha. Desktop, CLI, MCP server and browser builds from one engine.
-- Integration branch: `ours`. `main` is a copy of upstream and is not our work branch. Described commit: `729bb0166` (2026-10-26).
+- Integration branch: `ours`. `main` is a copy of upstream and is not our work branch. Described commit: `5153a711` (2026-10-26; code unchanged since `729bb016`, only docs on top).
 - Upstream: `storytold/photocraft` (`upstream/main`). Nothing is pushed or posted there. Existing `docs/maps/` holds goal maps, not a code map, so this file is `docs/code-map.md`.
 - Longer references: `AGENTS.md` (workspace map and rules), `docs/architecture.md`, `docs/development.md`.
 
