@@ -9,7 +9,7 @@
 
 ## Layout
 
-Workspace members: `crates/*`, `apps/*`, `xtask` (30 crates, 4 apps; the default members leave out the two web apps). Layers are enforced by `cargo xtask layers` (`xtask/src/layers.rs`); a crate may depend only on lower layers.
+Workspace members: `crates/*`, `apps/*`, `xtask` (29 crates, 4 apps; the default members leave out the two web apps). Layers are enforced by `cargo xtask layers` (`xtask/src/layers.rs`); a crate may depend only on lower layers.
 
 | Path | What it owns |
 |---|---|
