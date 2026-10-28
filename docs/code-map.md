@@ -2,20 +2,21 @@
 
 - Repo: iannitram/photocraft, a fork of storytold/photocraft (Rust, edition 2024, MIT OR Apache-2.0).
 - Kind: native layered image editor (Photoshop-style, clean-room) as a Cargo workspace, version 0.16.0, early alpha. Desktop, CLI, MCP server and browser builds from one engine.
-- Integration branch: `ours`. `main` is a copy of upstream and is not our work branch. Described commit: `5153a711` (2026-10-26; code unchanged since `729bb016`, only docs on top).
-- Upstream: `storytold/photocraft` (`upstream/main`). Nothing is pushed or posted there. Existing `docs/maps/` holds goal maps, not a code map, so this file is `docs/code-map.md`.
+- Integration branch: `ours` (the default branch). `main` is a mirror of upstream and is not our work branch.
+- Describes commit: 311154f8f (2026-10-28)
+- Upstream: `storytold/photocraft` (`upstream/main`). Nothing is pushed or posted there. `docs/maps/` holds goal maps (and one `ui-egui` map), not a code map, so this file is `docs/code-map.md`. Upstream owns every crate and file not listed under "Where our work is".
 - Longer references: `AGENTS.md` (workspace map and rules), `docs/architecture.md`, `docs/development.md`.
 
 ## Layout
 
-Workspace members: `crates/*`, `apps/*`, `xtask`. Layers are enforced by `cargo xtask layers` (`xtask/src/layers.rs`); a crate may depend only on lower layers.
+Workspace members: `crates/*`, `apps/*`, `xtask` (30 crates, 4 apps; the default members leave out the two web apps). Layers are enforced by `cargo xtask layers` (`xtask/src/layers.rs`); a crate may depend only on lower layers.
 
 | Path | What it owns |
 |---|---|
 | `crates/geom`, `cms`, `color`, `raster` | L0 foundation: geometry; pure-Rust ICC v2/v4 colour management; pixel formats and blend math; sparse copy-on-write tiled surfaces. |
 | `crates/psd`, `codecs` | L0 standalone format crates: lossless PSD/PSB reader-writer; flat raster codecs. No workspace deps. |
 | `crates/raw`, `heif`, `affinity` | Camera raw decode and develop (DNG, CR2 and others); optional HEIF/HEIC decoder; Affinity document reader. |
-| `crates/tablet` | Pen pressure/tilt input (AppKit, X11 XInput2, Windows barrel button). The one crate allowed `unsafe`. |
+| `crates/tablet` | Pen pressure/tilt input (AppKit, X11 XInput2, Windows barrel button). Isolated `unsafe` (`deny`, not the workspace's `forbid`); `wayland-drop` is the other crate that opts in. |
 | `crates/doc` | L1 document model: layers, masks, adjustments, effects, smart objects. Pure data. |
 | `crates/ops`, `paint`, `algo`, `text`, `vector` | L2: undo history; brush engine; tile-aware CPU filters and selection (`algo/src/segment`); font and text layout (parley); paths and shapes. |
 | `crates/compose`, `gpu`, `format` | L3: CPU reference compositor (the oracle); wgpu compositor; native `.pcraft` bundle (zstd tiles). |
@@ -25,8 +26,8 @@ Workspace members: `crates/*`, `apps/*`, `xtask`. Layers are enforced by `cargo 
 | `crates/automation` | MCP server (rmcp) over the engine, plus a bridge to a running GUI. |
 | `crates/ipp` | Small IPP client for CUPS printing. |
 | `crates/testkit` | Test helpers. |
-| `crates/craft-log`, `craft-stage` | Self-logging and named long-operation stages. Ours, not upstream. |
-| `crates/wayland-drop` | Files dropped on a winit window under Wayland. Ours. |
+| `crates/craft-log`, `craft-stage` | Self-logging (log files, crash and stall reports) and named long-operation stages. Ours, not upstream; `craft-stage` is a standalone crate, `craft-log` sits at L5. |
+| `crates/wayland-drop` | Files dropped on a winit window under Wayland (a prototype). Ours; `unsafe_code` is `deny` with the FFI isolated here, as in `tablet`. |
 | `apps/photocraft` | Desktop app (eframe/wgpu) with a TCP control server. |
 | `apps/photocraft-cli` | Headless CLI: convert, info, run, batch, commands, mcp. |
 | `apps/photocraft-web`, `photocraft-web-boot` | Browser build (trunk, wasm-bindgen, WebGPU with WebGL2 fallback) and its compressed-parts bootstrap. |
@@ -34,7 +35,7 @@ Workspace members: `crates/*`, `apps/*`, `xtask`. Layers are enforced by `cargo 
 | `examples/plugins/invert-rs` | Example wasm filter plug-in. |
 | `perf/`, `scripts/` | Performance budgets and baseline; corpus fetch and fixture scripts. |
 | `packaging/` | Linux, macOS (dmg, notarization scripts), Windows, FreeBSD and web packaging. |
-| `docs/`, `book/` | Architecture, parity, per-feature notes, performance reports, generated `scorecard.md`; `docs/maps/` goal maps. |
+| `docs/`, `book/` | Architecture, parity, per-feature notes, performance reports, generated `scorecard.md`; `docs/maps/` goal maps; `docs/agents/` agent notes (ours). |
 | `assets/`, `contributors/`, `scorecard/` | Icons and brand; contributor data; scorecard inputs. |
 
 ## How it fits together
@@ -58,16 +59,16 @@ flowchart TD
 
 ## Where our work is
 
-`git log upstream/main..HEAD`: about 116 commits (some are sync merges); `git diff upstream/main...HEAD` is 118 files, +8,799 / -99. Upstream was 279 commits ahead of our merge base at this snapshot. Areas:
+`git log upstream/main..HEAD`: 120 commits (some are sync merges); `git diff upstream/main...HEAD` is 123 files, +8,967 / -99. Upstream is 723 commits ahead of our merge base at this snapshot; an upstream sync has not landed on `ours`. Areas:
 
-| Area | Files touched |
+| Area | Where |
 |---|---|
-| Self-logging: new `crates/craft-log` and `craft-stage`; wiring in `apps/photocraft/src/self_logging.rs`, `apps/photocraft-cli/src/selflog.rs`, `crates/ui-egui/src/self_logging.rs`; tests in `apps/*/tests/selflog*.rs` |
-| Linux/Wayland: `crates/wayland-drop`, `apps/photocraft/src/wayland_drop.rs`, `wayland_outputs.rs` (gamescope guard, sideways panels, maximize a tall window) |
-| `crates/ui-egui`: missing-font prompt (`missing_font_prompt*.rs`), snap/smart-guide behavior, Camera Raw window sizing, zh-hans, Serbian and Hungarian strings in `i18n/` |
-| `crates/algo/src/segment/`: GrabCut / Boykov-Kolmogorov cancel and step-budget fixes (`budget_tests.rs`) |
-| `crates/engine`, `compose`, `io`: Replace Contents size note, layer-style `edit`, stroke effect opacity, PSD/PSB save refusing a lossy timeline save, PSD export tests |
-| `docs/maps/` goal and code maps, `docs/agents/`, regenerated `docs/scorecard.md` |
+| Self-logging | New `crates/craft-log` and `craft-stage`; wiring in `apps/photocraft/src/self_logging.rs`, `apps/photocraft-cli/src/selflog.rs`, `crates/ui-egui/src/self_logging.rs`; tests in `apps/*/tests/selflog*.rs` |
+| Linux / Wayland | `crates/wayland-drop`, `apps/photocraft/src/wayland_drop.rs`, `wayland_outputs.rs` (gamescope guard, sideways panels, maximize a tall window) |
+| `crates/ui-egui` | Missing-font prompt (`missing_font_prompt*.rs`), snap and smart-guide behaviour, Camera Raw window sizing, open-file handling, and translations in `i18n/` (zh-hans: 361 changed rows; Serbian and Hungarian strings; a few rows in every language) |
+| `crates/algo/src/segment/` | GrabCut and Boykov-Kolmogorov cancel and step-budget fixes (`budget_tests.rs`); Select Subject edge handling in `subject.rs`; Select and Mask feather in `matting.rs` |
+| `crates/engine`, `compose`, `io`, `psd`, `doc`, `gpu` | Replace Contents size note (`smart_cmds.rs`), layer-style `edit` (`layer_style.rs`), stroke effect opacity and glow fixes (`compose/src/effects.rs`, `compose.wgsl`), PSD/PSB save refusing a lossy timeline save, PSD export fixes and tests (`io/tests/it/psd_export_*.rs`) |
+| Docs | `docs/maps/` goal and `ui-egui` maps, `docs/agents/`, `SPEC.md`, `PIPELINE.md`, `AGENTS.fork.md`, `CHANGELOG.md`, regenerated `docs/scorecard.md` |
 
 Several commits are sync-merge follow-ups (adapting our tests and zh-hans rows to upstream changes). Ours-only crates are marked "never offered upstream" in their headers.
 
@@ -83,13 +84,13 @@ cargo xtask ci        # fmt, clippy, layers, scorecard, tests, panic_hunt, docte
 cargo xtask layers    # dependency layering check
 ```
 
-CI (`.github/workflows/ci.yml`): `platforms` selects legs; `gate` (shared workflow, Ubuntu, runs `cargo xtask ci --locked --features heif`); `windows` (windows-latest, unit and integration legs, only when platform-sensitive code changes); `test-without-heif`; `corpus` (real-file oracles); `web` (wasm build); `fuzz`. Other workflows: `freebsd`, `nix`, `windows-arm64`, `packaging-lint`, `docs`, `perf-nightly`, `release`, `sonarcloud`.
+CI (`.github/workflows/ci.yml`): `platforms` selects legs; `gate` (shared workflow, Ubuntu, runs `cargo xtask ci --locked --features heif`); `windows` (windows-latest, unit and integration legs; for pull requests only when platform-sensitive code changes or the `full-ci` label is on); `test-without-heif`; `corpus` (real-file oracles); `web` (wasm build, when web-relevant files change); `fuzz` (manual). Other workflows: `freebsd`, `nix`, `windows-arm64`, `packaging-lint`, `docs`, `perf-nightly`, `release`, `sonarcloud`. The push triggers in these files name `main`, not `ours`: a plain push to `ours` starts no push run, so changes to `ours` are checked by their pull request, and the scheduled runs (FreeBSD, Windows ARM64, perf) use the default branch, `ours`.
 
 ## Mac / PC / Linux
 
 - All three desktops are targets, plus FreeBSD and the browser. Linux build needs libxkbcommon, wayland, x11, xrandr, xi, GL and GTK3 dev packages.
-- Platform-specific code: `crates/tablet` (AppKit, X11, Windows), `crates/wayland-drop` and `apps/photocraft/src/wayland_*.rs` (Linux only), `crates/ipp` (CUPS printing), `packaging/{macos,windows,linux,freebsd,web}`.
-- CI coverage (R04): Linux on every change, Windows on platform-sensitive changes, FreeBSD, Windows on ARM64 and Nix workflows exist, wasm32 checked. No macOS job appears in `ci.yml`; `release.yml` calls a shared workflow, and macOS packaging scripts live in `packaging/macos`; whether a release job builds macOS was not confirmed from this repo. A change that touches macOS-only code (tablet, packaging) is not covered by CI here.
+- Platform-specific code: `crates/tablet` (AppKit, X11, Windows), `crates/wayland-drop` and `apps/photocraft/src/wayland_*.rs` (Linux only), `crates/ipp` (CUPS printing), macOS shell code in `apps/photocraft/src/mac_menu.rs`, `mac_window.rs` and `apple_events.rs`, `packaging/{macos,windows,linux,freebsd,web}`.
+- CI coverage (R04): Linux on every pull request, Windows on platform-sensitive changes or `full-ci`, FreeBSD and Windows on ARM64 on a schedule, a Nix check, wasm32 built. There is no macOS job in `ci.yml` (its own comment: macOS is tested only by `release.yml`, which calls a shared workflow on pushes to a `release` branch; our fork has no `release` branch). A change that touches macOS-only code (tablet, `mac_*.rs`, packaging) is therefore not tested by CI here and needs a run on a Mac.
 
 ## Open-source pieces
 
