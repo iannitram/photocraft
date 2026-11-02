@@ -5,7 +5,7 @@
 //! The existing SoA residual graph is reused. Terminal source arcs are saturated
 //! into a preflow; `back` keeps their reverse capacity, `excess` uses f64 so local
 //! f32 capacity updates do not accumulate excess-rounding drift.
-use super::{CANCEL_EVERY, EPS, Graph, NONE, TERMINAL};
+use super::{EPS, Graph, NONE, Steps, TERMINAL};
 use std::collections::VecDeque;
 
 impl Graph {
@@ -30,7 +30,8 @@ impl Graph {
                 self.tr_cap[i] = 0.0;
             }
         }
-        self.global_relabel(source_height, &back);
+        let mut steps = Steps::new(cancel);
+        self.global_relabel(source_height, &back, &mut steps)?;
         let mut queue = VecDeque::new();
         for (i, &e) in excess.iter().enumerate() {
             if e > f64::from(EPS) {
@@ -40,14 +41,11 @@ impl Graph {
         }
         let mut work = 0usize;
         let frequency = self.r_cap.len().saturating_mul(2).saturating_add(n);
-        let mut steps = 0u32;
         while let Some(i) = queue.pop_front() {
-            steps = steps.wrapping_add(1);
-            if steps.is_multiple_of(CANCEL_EVERY) && cancel() {
-                return None;
-            }
+            steps.step()?;
             self.active[i] = false;
             while excess[i] > f64::from(EPS) {
+                steps.step()?;
                 if self.dist[i] == 1 && self.tr_cap[i] < -EPS {
                     let delta = (excess[i] as f32).min(-self.tr_cap[i]);
                     self.tr_cap[i] += delta;
@@ -70,7 +68,7 @@ impl Graph {
                 while a != NONE {
                     let ai = a as usize;
                     let j = self.head[ai] as usize;
-                    work += 1;
+                    work = work.saturating_add(1);
                     // `checked_add`: two nodes a global relabel left unreachable (`u32::MAX`) must
                     // not count as admissible for each other, or float-stranded excess ping-pongs
                     // between them forever.
@@ -101,7 +99,7 @@ impl Graph {
                 let mut a = self.first[i];
                 while a != NONE {
                     let ai = a as usize;
-                    work += 1;
+                    work = work.saturating_add(1);
                     if self.r_cap[ai] > EPS {
                         height = height.min(self.dist[self.head[ai] as usize])
                     }
@@ -114,7 +112,7 @@ impl Graph {
                 self.parent[i] = self.first[i];
             }
             if work >= frequency {
-                self.global_relabel(source_height, &back);
+                self.global_relabel(source_height, &back, &mut steps)?;
                 work = 0;
             }
         }
@@ -129,6 +127,7 @@ impl Graph {
             }
         }
         while let Some(i) = queue.pop_front() {
+            steps.step()?;
             let mut a = self.first[i];
             while a != NONE {
                 let ai = a as usize;
@@ -144,7 +143,7 @@ impl Graph {
         Some(self.flow)
     }
 
-    fn global_relabel(&mut self, source_height: u32, back: &[f32]) {
+    fn global_relabel(&mut self, source_height: u32, back: &[f32], steps: &mut Steps<'_>) -> Option<()> {
         self.dist.fill(u32::MAX);
         self.parent.clone_from(&self.first);
         let mut queue = VecDeque::new();
@@ -155,6 +154,7 @@ impl Graph {
             }
         }
         while let Some(i) = queue.pop_front() {
+            steps.step()?;
             let mut a = self.first[i];
             while a != NONE {
                 let ai = a as usize;
@@ -175,6 +175,7 @@ impl Graph {
             }
         }
         while let Some(i) = queue.pop_front() {
+            steps.step()?;
             let mut a = self.first[i];
             while a != NONE {
                 let ai = a as usize;
@@ -186,6 +187,7 @@ impl Graph {
                 a = self.next[ai];
             }
         }
+        Some(())
     }
 }
 
