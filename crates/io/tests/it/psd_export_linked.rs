@@ -31,6 +31,17 @@ fn linked_doc(path: &str) -> Document {
     d
 }
 
+/// A small PNG in the temp directory, for a link that should be embedded. Upstream embeds a linked
+/// file only when PhotoCraft can open it as an image (5ca6fc7767); a file that is not an image
+/// (the four bytes these tests once used) is written as pixels instead.
+fn write_linked_png(stem: &str) -> std::path::PathBuf {
+    let image = photocraft_codecs::Image::from_u8(4, 4, photocraft_codecs::ChannelLayout::Rgb, vec![0; 4 * 4 * 3]).unwrap();
+    let png = photocraft_codecs::encode(&image, photocraft_codecs::Format::Png, &Default::default()).unwrap();
+    let path = std::env::temp_dir().join(format!("{stem}-{}.png", std::process::id()));
+    std::fs::write(&path, png).unwrap();
+    path
+}
+
 /// The export either fails or warns, and says why; it never embeds what isn't a file. Two
 /// guards can say it: `doc_path::resolve` (upstream's, via `craft_docpath`) refuses a device
 /// path ("names a device, not a file") or a pipe on a server ("is on another computer") by name
@@ -61,8 +72,7 @@ fn a_device_link_is_not_read_forever() {
 
 #[test]
 fn a_regular_linked_file_is_still_embedded() {
-    let path = std::env::temp_dir().join(format!("photocraft-linked-{}.bin", std::process::id()));
-    std::fs::write(&path, [1u8, 2, 3, 4]).unwrap();
+    let path = write_linked_png("photocraft-linked");
     let r = export(&linked_doc(&path.display().to_string()), "a.psd", &ExportOptions::default());
     let _ = std::fs::remove_file(&path);
     let r = r.unwrap();
@@ -93,8 +103,7 @@ fn a_pipe_link_is_refused_by_name() {
 #[cfg(windows)]
 #[test]
 fn a_verbatim_drive_path_is_still_embedded() {
-    let path = std::env::temp_dir().join(format!("photocraft-linked-verbatim-{}.bin", std::process::id()));
-    std::fs::write(&path, [1u8, 2, 3, 4]).unwrap();
+    let path = write_linked_png("photocraft-linked-verbatim");
     let verbatim = std::fs::canonicalize(&path).unwrap();
     assert!(verbatim.display().to_string().starts_with(r"\\?\"), "{}", verbatim.display());
     let r = export(&linked_doc(&verbatim.display().to_string()), "a.psd", &ExportOptions::default());
