@@ -3,7 +3,7 @@
 - Repo: iannitram/photocraft, a fork of storytold/photocraft (Rust, edition 2024, MIT OR Apache-2.0).
 - Kind: native layered image editor (Photoshop-style, clean-room) as a Cargo workspace, version 0.16.0, early alpha. Desktop, CLI, MCP server and browser builds from one engine.
 - Integration branch: `ours` (the default branch). `main` is a mirror of upstream and is not our work branch.
-- Describes commit: 311154f8f (2026-10-28)
+- Describes commit: a08449eb (2026-11-02)
 - Upstream: `storytold/photocraft` (`upstream/main`). Nothing is pushed or posted there. `docs/maps/` holds goal maps (and one `ui-egui` map), not a code map, so this file is `docs/code-map.md`. Upstream owns every crate and file not listed under "Where our work is".
 - Longer references: `AGENTS.md` (workspace map and rules), `docs/architecture.md`, `docs/development.md`.
 
@@ -18,11 +18,11 @@ Workspace members: `crates/*`, `apps/*`, `xtask` (29 crates, 4 apps; the default
 | `crates/raw`, `heif`, `affinity` | Camera raw decode and develop (DNG, CR2 and others); optional HEIF/HEIC decoder; Affinity document reader. |
 | `crates/tablet` | Pen pressure/tilt input (AppKit, X11 XInput2, Windows barrel button). Isolated `unsafe` (`deny`, not the workspace's `forbid`); `wayland-drop` is the other crate that opts in. |
 | `crates/doc` | L1 document model: layers, masks, adjustments, effects, smart objects. Pure data. |
-| `crates/ops`, `paint`, `algo`, `text`, `vector` | L2: undo history; brush engine; tile-aware CPU filters and selection (`algo/src/segment`); font and text layout (parley); paths and shapes. |
+| `crates/ops`, `paint`, `algo`, `text`, `vector` | L2: undo history; brush engine; tile-aware CPU filters and selection (`crates/algo/src/segment/`); font and text layout (parley); paths and shapes. |
 | `crates/compose`, `gpu`, `format` | L3: CPU reference compositor (the oracle); wgpu compositor; native `.pcraft` bundle (zstd tiles). |
 | `crates/io`, `plugins` | L4: document to PSD and flat-format mapping; sandboxed WebAssembly filter plug-ins (wasmi). |
 | `crates/engine` | L5: sessions, history and the command registry (about 700 commands; every action is a command id). |
-| `crates/ui-egui` | L6: egui/eframe shell, menus, dialogs, tools, `i18n/` translations. Thin; all actions go through the engine. |
+| `crates/ui-egui` | L6: egui/eframe shell, menus, dialogs, tools, `src/i18n/` translations. Thin; all actions go through the engine. |
 | `crates/automation` | MCP server (rmcp) over the engine, plus a bridge to a running GUI. |
 | `crates/ipp` | Small IPP client for CUPS printing. |
 | `crates/testkit` | Test helpers. |
@@ -52,23 +52,23 @@ flowchart TD
     eng --> comp["compose (CPU) / gpu (wgpu)"]
 ```
 
-- Everything is a command: menu, palette, shortcuts, CLI, JSON control channel and MCP all dispatch by command id into `crates/engine` (`CommandSpec` in `commands.rs`).
-- The UI is data-driven; state lives in `ui-egui/src/state.rs` so the control channel can read and drive it. The core compiles to wasm32, so the browser build shares the engine.
+- Everything is a command: menu, palette, shortcuts, CLI, JSON control channel and MCP all dispatch by command id into `crates/engine` (`CommandSpec` in `crates/engine/src/cmd.rs`).
+- The UI is data-driven; state lives in `crates/ui-egui/src/state.rs` so the control channel can read and drive it. The core compiles to wasm32, so the browser build shares the engine.
 - Each algorithm has a CPU reference; some also have a WGSL version reading the same `bytemuck` parameter struct, checked against the CPU result.
 - Entry points: `apps/photocraft/src/main.rs`, `apps/photocraft-cli/src/main.rs`, `apps/photocraft-web/src`, `xtask/src/main.rs`.
 
 ## Where our work is
 
-`git log upstream/main..HEAD`: 120 commits (some are sync merges); `git diff upstream/main...HEAD` is 123 files, +8,967 / -99. Upstream is 723 commits ahead of our merge base at this snapshot; an upstream sync has not landed on `ours`. Areas:
+`git log upstream/main..HEAD`: 152 commits (many are sync merges); the diff from the merge base is 151 files, +8,899 / -127. The upstream sync (#49) landed on `ours` on 2026-11-01, and upstream is 193 commits ahead of that merge base at this snapshot, so the next sync is still to do. Areas:
 
 | Area | Where |
 |---|---|
-| Self-logging | New `crates/craft-log` and `craft-stage`; wiring in `apps/photocraft/src/self_logging.rs`, `apps/photocraft-cli/src/selflog.rs`, `crates/ui-egui/src/self_logging.rs`; tests in `apps/*/tests/selflog*.rs` |
-| Linux / Wayland | `crates/wayland-drop`, `apps/photocraft/src/wayland_drop.rs`, `wayland_outputs.rs` (gamescope guard, sideways panels, maximize a tall window) |
-| `crates/ui-egui` | Missing-font prompt (`missing_font_prompt*.rs`), snap and smart-guide behaviour, Camera Raw window sizing, open-file handling, and translations in `i18n/` (zh-hans: 361 changed rows; Serbian and Hungarian strings; a few rows in every language) |
-| `crates/algo/src/segment/` | GrabCut and Boykov-Kolmogorov cancel and step-budget fixes (`budget_tests.rs`); Select Subject edge handling in `subject.rs`; Select and Mask feather in `matting.rs` |
-| `crates/engine`, `compose`, `io`, `psd`, `doc`, `gpu` | Replace Contents size note (`smart_cmds.rs`), layer-style `edit` (`layer_style.rs`), stroke effect opacity and glow fixes (`compose/src/effects.rs`, `compose.wgsl`), PSD/PSB save refusing a lossy timeline save, PSD export fixes and tests (`io/tests/it/psd_export_*.rs`) |
-| Docs | `docs/maps/` goal and `ui-egui` maps, `docs/agents/`, `SPEC.md`, `PIPELINE.md`, `AGENTS.fork.md`, `CHANGELOG.md`, regenerated `docs/scorecard.md` |
+| Self-logging | New `crates/craft-log` and `craft-stage`; wiring in `apps/photocraft/src/self_logging.rs`, `apps/photocraft-cli/src/selflog.rs` (also builds the `--version` text), `crates/ui-egui/src/self_logging.rs`; tests in `apps/*/tests/selflog*.rs` and `apps/photocraft-cli/tests/version.rs` |
+| Linux / Wayland | `crates/wayland-drop`, `apps/photocraft/src/wayland_drop.rs`, `apps/photocraft/src/wayland_outputs.rs` (gamescope guard, sideways panels, maximize a tall window) |
+| `crates/ui-egui` | Missing-font prompt (`src/missing_font_prompt.rs` and `missing_font_prompt_tests.rs`), snap and smart-guide behaviour, Camera Raw window sizing, open-file handling, and translations in `src/i18n/` (zh-hans: 361 changed rows; Serbian and Hungarian strings; a few rows in every language) |
+| `crates/algo` | Select Subject edge handling in `src/segment/subject.rs`; Select and Mask feather in `src/matting.rs`. Our GrabCut and Boykov-Kolmogorov cancel hook was dropped in the sync: upstream's solver replaced it. |
+| `crates/engine`, `compose`, `io`, `psd`, `doc`, `gpu` | Replace Contents size note (`crates/engine/src/cmd/smart_cmds.rs`), layer-style `edit` (`crates/engine/src/layer_style.rs`), stroke effect opacity and glow fixes (`crates/compose/src/effects.rs`, `crates/gpu/src/compose.wgsl`), a clipped adjustment taking Fill as coverage on the CMYK ink path (`crates/compose/src/cmyk.rs`, with the matching GPU plan in `crates/gpu/src/batch.rs` and `prefix.rs`), PSD/PSB save refusing a lossy timeline save, PSD export fixes and tests (`crates/io/src/psd_export.rs`, `crates/io/tests/it/psd_export_*.rs`, `crates/psd/src/resources.rs`) |
+| Docs | `docs/maps/` goal and `ui-egui` maps, `docs/agents/`, `docs/control-protocol.md` edits, `SPEC.md`, `PIPELINE.md`, `AGENTS.fork.md`, `CHANGELOG.md`, regenerated `docs/scorecard.md` |
 
 Several commits are sync-merge follow-ups (adapting our tests and zh-hans rows to upstream changes). Ours-only crates are marked "never offered upstream" in their headers.
 
