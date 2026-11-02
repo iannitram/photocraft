@@ -1138,6 +1138,29 @@ fn invert_and_posterize_work_ink_by_ink() {
     assert_eq!(render1(&d, 0, 0), [0.0, 0.0, 1.0, 1.0, 1.0]);
 }
 
+/// Posterize at 77% Fill in Linear Burn and Linear Dodge, the two shapes of the split-route
+/// failures the proptest drew: Fill is part of the blend, so Linear Burn takes 59% black to full
+/// black (Fill as coverage gave 91%) and Linear Dodge takes 31% magenta to none.
+#[test]
+fn posterize_fill_in_linear_burn_and_dodge() {
+    for (mode, ink, want) in
+        [(BlendMode::LinearBurn, [0.0, 0.0, 0.0, 0.59], [0.0, 0.0, 0.0, 1.0, 1.0]), (BlendMode::LinearDodge, [0.0, 0.31, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 1.0])]
+    {
+        let mut d = doc(2, 1);
+        d.layers.push(paper(2, 1, ink));
+        let mut post = adjustment(Adjustment::Posterize { levels: 2 });
+        post.blend = mode;
+        post.fill_opacity = 0.77;
+        d.layers.push(post);
+        assert!(supports(&d) && split::supports(&d), "{mode:?}");
+        assert_eq!(render1(&d, 0, 0), want, "{mode:?}");
+        let via = split_render(&d);
+        let exact = render_cmyk(&d, via.rect).unwrap_or_else(|| panic!("supported"));
+        assert_eq!(via.px, exact.px, "{mode:?}: split route");
+        assert_matches_reference(&d);
+    }
+}
+
 /// Levels' composite record changes every ink, the black record only K; channels a record
 /// leaves alone keep their exact inks.
 #[test]
