@@ -88,7 +88,7 @@ fn trusted(content: Rect, usable: Rect) -> Rect {
 }
 
 fn turned_id() -> egui::Id {
-    egui::Id::new("pc-quarter-turned-modes")
+    egui::Id::unique("pc-quarter-turned-modes")
 }
 
 /// Tell the work area which monitors the desktop shows turned a quarter (90° or 270°): the pixel
