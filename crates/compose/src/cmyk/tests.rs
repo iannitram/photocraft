@@ -214,20 +214,25 @@ fn ref_adjust(adj: &Adjustment, p: Cmyka) -> Cmyka {
 }
 
 /// An adjustment layer `l` (adjusting `p`, then `clipped` onto that) mixed into `p` in its blend
-/// mode by its opacity and mask; coverage stays.
-fn ref_adjusted(l: &Layer, adj: &Adjustment, clipped: &[Layer], p: Cmyka, x: i32, y: i32) -> Cmyka {
+/// mode by its opacity and mask; coverage stays. In the special eight below 100% Fill, Fill is
+/// part of the blend (`psblend::blend_rgb_fill`, on brightness) and Opacity alone mixes it in,
+/// unless the adjustment is itself `is_clipped` (then Fill is coverage in every mode).
+fn ref_adjusted(l: &Layer, adj: &Adjustment, clipped: &[Layer], p: Cmyka, x: i32, y: i32, is_clipped: bool) -> Cmyka {
     let mut a = ref_adjust(adj, p);
     if p[4] > 0.0 {
         a = ref_clip(clipped, a, x, y);
     }
-    let k = l.opacity * l.fill_opacity * ref_mask(l, x, y);
+    let special = !is_clipped && l.fill_opacity < 1.0 && crate::psblend::fill_is_special(l.blend);
+    let (opacity, fill) = if special { (l.opacity, l.fill_opacity) } else { (l.opacity * l.fill_opacity, 1.0) };
+    let k = opacity * ref_mask(l, x, y);
     if l.blend == BlendMode::Dissolve {
         // Opacity and mask are the chance the pixel takes the adjustment fully.
         return if k > 0.0 && crate::dissolve_noise(x, y) < k { [a[0], a[1], a[2], a[3], p[4]] } else { p };
     }
     let mut o = p;
     for c in 0..4 {
-        o[c] = p[c] + (ref_blend(l.blend, p[c], a[c]) - p[c]) * k;
+        let m = 1.0 - crate::psblend::blend_rgb_fill(l.blend, [1.0 - p[c]; 3], [1.0 - a[c]; 3], fill)[0];
+        o[c] = p[c] + (m - p[c]) * k;
     }
     o
 }
@@ -236,7 +241,7 @@ fn ref_adjusted(l: &Layer, adj: &Adjustment, clipped: &[Layer], p: Cmyka, x: i32
 fn ref_clip(clipped: &[Layer], mut content: Cmyka, x: i32, y: i32) -> Cmyka {
     for c in clipped.iter().filter(|c| c.visible) {
         if let LayerContent::Adjustment(adj) = &c.content {
-            content = ref_adjusted(c, adj, &[], content, x, y);
+            content = ref_adjusted(c, adj, &[], content, x, y, true);
         } else if content[4] > 0.0 {
             let a = content[4];
             let r = over_layer(c, [content[0], content[1], content[2], content[3], 1.0], ref_own(c, x, y), c.opacity * c.fill_opacity, Some((x, y)));
@@ -292,7 +297,7 @@ fn ref_layer(l: &Layer, clipped: &[Layer], x: i32, y: i32, b: Cmyka) -> Cmyka {
             o[4] = a;
             return o;
         }
-        LayerContent::Adjustment(adj) => return ref_adjusted(l, adj, clipped, b, x, y),
+        LayerContent::Adjustment(adj) => return ref_adjusted(l, adj, clipped, b, x, y, false),
         LayerContent::Group(g) => {
             let mut c = ref_stack(&g.children, x, y, [0.0; 5]);
             c[4] *= ref_mask(l, x, y);
@@ -1134,6 +1139,52 @@ fn invert_and_posterize_work_ink_by_ink() {
     assert_eq!(render1(&d, 0, 0), [0.0, 0.0, 1.0, 1.0, 1.0]);
 }
 
+/// Posterize at 77% Fill in Linear Burn and Linear Dodge, the two shapes of the split-route
+/// failures the proptest drew: Fill is part of the blend, so Linear Burn takes 59% black to full
+/// black (Fill as coverage gave 91%) and Linear Dodge takes 31% magenta to none.
+#[test]
+fn posterize_fill_in_linear_burn_and_dodge() {
+    for (mode, ink, want) in
+        [(BlendMode::LinearBurn, [0.0, 0.0, 0.0, 0.59], [0.0, 0.0, 0.0, 1.0, 1.0]), (BlendMode::LinearDodge, [0.0, 0.31, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 1.0])]
+    {
+        let mut d = doc(2, 1);
+        d.layers.push(paper(2, 1, ink));
+        let mut post = adjustment(Adjustment::Posterize { levels: 2 });
+        post.blend = mode;
+        post.fill_opacity = 0.77;
+        d.layers.push(post);
+        assert!(supports(&d) && split::supports(&d), "{mode:?}");
+        assert_eq!(render1(&d, 0, 0), want, "{mode:?}");
+        let via = split_render(&d);
+        let exact = render_cmyk(&d, via.rect).unwrap_or_else(|| panic!("supported"));
+        assert_eq!(via.px, exact.px, "{mode:?}: split route");
+        assert_matches_reference(&d);
+    }
+}
+
+/// A clipped adjustment layer takes Fill as coverage in every mode, the special eight included,
+/// as the RGB compositor and the GPU do: Posterize(2) clipped at 46% Fill in Linear Light takes
+/// 87% black to 93%, not to full black.
+#[test]
+fn clipped_adjustments_take_fill_as_coverage() {
+    for mode in SEPARABLE.iter().copied().filter(|m| crate::psblend::fill_is_special(*m)) {
+        let mut d = doc(2, 2);
+        let base = layer(&[(Rect::new(0, 0, 1, 1), [0.0, 0.0, 0.0, 0.8656, 1.0])]);
+        let mut post = adjustment(Adjustment::Posterize { levels: 2 });
+        post.blend = mode;
+        post.fill_opacity = 0.4617;
+        post.clipped = true;
+        d.layers.push(Layer::group("g", vec![base, post]));
+        assert!(supports(&d) && split::supports(&d), "{mode:?}");
+        let via = split_render(&d);
+        let exact = render_cmyk(&d, via.rect).unwrap_or_else(|| panic!("supported"));
+        for (g, w) in via.px.iter().zip(&exact.px) {
+            assert!(g.iter().zip(w).all(|(a, b)| (a - b).abs() <= 1e-5), "{mode:?}: split route {g:?} vs {w:?}");
+        }
+        assert_matches_reference(&d);
+    }
+}
+
 /// Levels' composite record changes every ink, the black record only K; channels a record
 /// leaves alone keep their exact inks.
 #[test]
@@ -1856,5 +1907,50 @@ fn every_cmyk_route_rounds_after_an_adjustment_layer() {
         let display = crate::render(&d, rect).px[0][3];
         let export = render_cmyk(&d, rect).unwrap_or_else(|| panic!("supported")).px[0][4];
         assert_eq!((display, export), (105.0 / 255.0, 105.0 / 255.0), "opacity {opacity}");
+    }
+}
+
+/// An adjustment layer in one of the special eight below 100% Fill: Fill is part of the blend and
+/// Opacity alone mixes it in, on the ink path as on the RGB compositor (#9512; Linear Burn at
+/// Fill 71% put Y 0.957 where the split route gives 0.988).
+#[test]
+fn adjustment_layers_keep_the_special_fill_rule() {
+    let levels = AdjSpec::Levels { channel: 3, levels: [0.125, 0.8, 1.1, 0.14, 0.78] };
+    let s = Spec {
+        w: 3,
+        h: 1,
+        layers: vec![
+            raster_spec(BlendMode::Normal, (Rect::new(0, 0, 3, 1), [0.0, 0.0, 0.88, 1.0, 1.0]), 1.0, false),
+            LayerSpec::Pixels {
+                kind: Kind::Adjust(levels.clone()),
+                blend: BlendMode::LinearBurn,
+                fills: vec![],
+                opacity: 0.9,
+                fill: 0.71,
+                clipped: false,
+                visible: true,
+                mask: None,
+            },
+        ],
+    };
+    assert_split_matches_exact(&s);
+    for mode in SEPARABLE.iter().copied().filter(|m| crate::psblend::fill_is_special(*m)) {
+        let mut d = doc(4, 2);
+        d.layers.push(paper(4, 2, [0.2, 0.5, 0.1, 0.1]));
+        d.layers.push(layer(&[(Rect::new(0, 0, 3, 2), [0.6, 0.1, 0.4, 0.2, 0.8])]));
+        let mut a = build(&LayerSpec::Pixels {
+            kind: Kind::Adjust(levels.clone()),
+            blend: mode,
+            fills: vec![],
+            opacity: 0.9,
+            fill: 0.4,
+            clipped: false,
+            visible: true,
+            mask: None,
+        });
+        a.mask = Some(mask(&[(Rect::new(2, 0, 4, 2), 0.5)], 1.0, 1.0, true));
+        d.layers.push(a);
+        assert_matches_reference(&d);
+        assert_routes_agree(&d);
     }
 }
