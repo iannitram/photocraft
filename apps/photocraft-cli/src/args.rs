@@ -21,7 +21,7 @@ use serde_json::Value;
 
 /// photocraft-cli: headless PhotoCraft
 #[derive(Parser)]
-#[command(name = "photocraft-cli", version = photocraft_engine::build_info::long_version_static(), arg_required_else_help = true)]
+#[command(name = "photocraft-cli", version = crate::selflog::version_text_static(), arg_required_else_help = true)]
 pub(crate) struct Cli {
     #[command(subcommand)]
     pub(crate) command: Command,

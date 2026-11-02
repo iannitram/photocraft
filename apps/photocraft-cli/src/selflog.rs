@@ -70,6 +70,12 @@ pub fn version_text() -> String {
     version_text_of(photocraft_engine::build_info::long_version(), photocraft_engine::build_info::short_sha().is_some())
 }
 
+/// [`version_text`] as a `'static` str, for clap's `version` attribute.
+pub fn version_text_static() -> &'static str {
+    static TEXT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    TEXT.get_or_init(version_text)
+}
+
 fn version_text_of(upstream: String, stamped: bool) -> String {
     if stamped {
         upstream
