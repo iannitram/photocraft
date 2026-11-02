@@ -4767,3 +4767,9 @@ cameraRaw	White Balance: As Shot	Vitbalans: som tagen
 	The path was discarded	Banan kasserades
 	The path was kept as the Work Path	Banan behölls som arbetsbana
 	Edit Brush…	Redigera pensel…
+	Missing Fonts	Saknade teckensnitt
+	This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Texten använder teckensnitt som inte är installerade: {fonts}. Om du redigerar den ritas texten om med ett ersättningsteckensnitt. Fortsätta?
+	Text was drawn in a substitute font	Texten ritades med ett ersättningsteckensnitt
+	Choose an installed font for the text, or undo to bring back the text as it was.	Välj ett installerat teckensnitt för texten, eller ångra för att få tillbaka texten som den var.
+	Fonts used in this document are not installed	Teckensnitt som används i dokumentet är inte installerade
+	Type layers look as they were saved until their text is edited.	Textlager visas som de sparades tills texten redigeras.

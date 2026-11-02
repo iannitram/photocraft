@@ -4770,3 +4770,9 @@ cameraRaw	White Balance: As Shot	Valkotasapaino: kuvauksen mukainen
 	The path was discarded	Polku hylättiin
 	The path was kept as the Work Path	Polku säilytettiin työpolkuna
 	Edit Brush…	Muokkaa sivellintä…
+	Missing Fonts	Puuttuvat fontit
+	This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Teksti käyttää fontteja, joita ei ole asennettu: {fonts}. Muokkaaminen piirtää tekstin uudelleen korvaavalla fontilla. Jatketaanko?
+	Text was drawn in a substitute font	Teksti piirrettiin korvaavalla fontilla
+	Choose an installed font for the text, or undo to bring back the text as it was.	Valitse tekstille asennettu fontti tai kumoa palauttaaksesi tekstin ennalleen.
+	Fonts used in this document are not installed	Asiakirjassa käytettyjä fontteja ei ole asennettu
+	Type layers look as they were saved until their text is edited.	Tekstitasot näkyvät tallennetussa muodossaan, kunnes niiden tekstiä muokataan.

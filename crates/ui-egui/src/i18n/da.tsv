@@ -4769,3 +4769,9 @@ cameraRaw	White Balance: As Shot	Hvidbalance: Som fotograferet
 	The path was discarded	Stien blev kasseret
 	The path was kept as the Work Path	Stien blev bevaret som arbejdssti
 	Edit Brush…	Rediger pensel…
+	Missing Fonts	Manglende skrifttyper
+	This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Teksten bruger skrifttyper, der ikke er installeret: {fonts}. Hvis du redigerer den, tegnes teksten igen med en erstatningsskrifttype. Fortsæt?
+	Text was drawn in a substitute font	Teksten blev tegnet med en erstatningsskrifttype
+	Choose an installed font for the text, or undo to bring back the text as it was.	Vælg en installeret skrifttype til teksten, eller fortryd for at få teksten tilbage, som den var.
+	Fonts used in this document are not installed	Skrifttyper, der bruges i dokumentet, er ikke installeret
+	Type layers look as they were saved until their text is edited.	Tekstlag vises, som de blev gemt, indtil teksten redigeres.
