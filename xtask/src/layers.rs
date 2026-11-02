@@ -48,6 +48,9 @@ pub const TABLE: &[(&str, Class)] = &[
     ("adobe-assets", Class::Standalone),
     // Pen tablet input (the one isolated `unsafe` helper: AppKit interop on macOS).
     ("tablet", Class::Standalone),
+    // Files dropped on a winit window under Wayland: the other isolated `unsafe` helper (FFI in
+    // `linux.rs`), with no workspace dependencies.
+    ("wayland-drop", Class::Standalone),
     // Self-logging (ours, never offered upstream): stage scopes any library crate may open
     // (no dependencies), and the logger additions the programs install.
     ("craft-stage", Class::Standalone),

@@ -9,14 +9,6 @@ use photocraft_color::{ColorMode, SampleType};
 use photocraft_doc::*;
 use photocraft_io::*;
 
-/// A 1x1 PNG. Upstream embeds a linked file only when PhotoCraft can open it as an image, so
-/// the "embedded" tests need a real image, not arbitrary bytes.
-const TINY_PNG: [u8; 69] = [
-    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02,
-    0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde, 0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0xf8, 0xcf, 0xc0, 0x00, 0x00, 0x03, 0x01, 0x01,
-    0x00, 0xc9, 0xfe, 0x92, 0xef, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
-];
-
 fn linked_doc(path: &str) -> Document {
     let mut d = gen_doc(ColorMode::Rgb, SampleType::U8, Features::PIXELS);
     let cache = pattern(d.pixel_format(), photocraft_geom::Rect::new(1, 1, 6, 4), 7, true);
@@ -38,6 +30,17 @@ fn linked_doc(path: &str) -> Document {
         }),
     ));
     d
+}
+
+/// A small PNG in the temp directory, for a link that should be embedded. Upstream embeds a linked
+/// file only when PhotoCraft can open it as an image (5ca6fc7767); a file that is not an image
+/// (the four bytes these tests once used) is written as pixels instead.
+fn write_linked_png(stem: &str) -> std::path::PathBuf {
+    let image = photocraft_codecs::Image::from_u8(4, 4, photocraft_codecs::ChannelLayout::Rgb, vec![0; 4 * 4 * 3]).unwrap();
+    let png = photocraft_codecs::encode(&image, photocraft_codecs::Format::Png, &Default::default()).unwrap();
+    let path = std::env::temp_dir().join(format!("{stem}-{}.png", std::process::id()));
+    std::fs::write(&path, png).unwrap();
+    path
 }
 
 /// The export either fails or warns, and says why; it never embeds what isn't a file. Two
@@ -70,8 +73,7 @@ fn a_device_link_is_not_read_forever() {
 
 #[test]
 fn a_regular_linked_file_is_still_embedded() {
-    let path = std::env::temp_dir().join(format!("photocraft-linked-{}.bin", std::process::id()));
-    std::fs::write(&path, TINY_PNG).unwrap();
+    let path = write_linked_png("photocraft-linked");
     let r = export(&linked_doc(&path.display().to_string()), "a.psd", &ExportOptions::default());
     let _ = std::fs::remove_file(&path);
     let r = r.unwrap();
@@ -102,8 +104,7 @@ fn a_pipe_link_is_refused_by_name() {
 #[cfg(windows)]
 #[test]
 fn a_verbatim_drive_path_is_still_embedded() {
-    let path = std::env::temp_dir().join(format!("photocraft-linked-verbatim-{}.bin", std::process::id()));
-    std::fs::write(&path, TINY_PNG).unwrap();
+    let path = write_linked_png("photocraft-linked-verbatim");
     let verbatim = std::fs::canonicalize(&path).unwrap();
     assert!(verbatim.display().to_string().starts_with(r"\\?\"), "{}", verbatim.display());
     let r = export(&linked_doc(&verbatim.display().to_string()), "a.psd", &ExportOptions::default());
