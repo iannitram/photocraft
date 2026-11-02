@@ -458,7 +458,7 @@ fn refine_edge_shift_and_contrast() {
         s.execute("edit.undo", json!({})).unwrap();
     }
     // A feathered one moves: -100% pulls its half-covered point inside the old edge.
-    s.execute("select.refineEdge", json!({"feather": 4, "shiftEdge": -100})).unwrap();
+    s.execute("select.refineEdge", json!({"feather": 2, "shiftEdge": -100})).unwrap();
     assert!(cov(&s, 37, 20) < 0.5 && cov(&s, 30, 20) > 0.99);
     s.execute("edit.undo", json!({})).unwrap();
     s.execute("select.refineEdge", json!({"feather": 8, "contrast": 100})).unwrap();
