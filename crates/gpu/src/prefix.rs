@@ -107,7 +107,12 @@ impl Prefix {
     /// Drops the chunks `doc` invalidated and returns the checkpoint this render captures at, one
     /// of `checkpoints` (the plan's that a batch run starts at). A chunk held at any other point
     /// is dropped too: resuming there would group the layers above it differently.
-    pub(crate) fn prepare(&mut self, doc: &Document, checkpoints: &[Checkpoint]) -> Option<Checkpoint> {
+    ///
+    /// A render captures at an `anchor` (a checkpoint that stays a run start whatever is stacked
+    /// above it) when one lies below the edit: a checkpoint that is a run start only in this
+    /// stack stops being one once a layer is pasted or duplicated above it, and the chunk held
+    /// there is dropped, so the next render would recompose everything (#56).
+    pub(crate) fn prepare(&mut self, doc: &Document, checkpoints: &[Checkpoint], anchor: impl Fn(&Checkpoint) -> bool) -> Option<Checkpoint> {
         if self.budget == 0 {
             return None;
         }
@@ -140,7 +145,10 @@ impl Prefix {
         let kept = self.checkpoint.filter(|c| same_context && changed.is_none() && checkpoints.contains(c));
         let checkpoint = kept.or_else(|| match changed {
             // Just below the edit; nothing when it is at the bottom.
-            Some(changed) if same_context => checkpoints.iter().rev().find(|c| c.layer_end <= changed && c.pass_end > 1).copied(),
+            Some(changed) if same_context => {
+                let below = || checkpoints.iter().rev().filter(|c| c.layer_end <= changed && c.pass_end > 1);
+                below().find(|c| anchor(c)).or_else(|| below().next()).copied()
+            }
             _ => {
                 let mut useful = checkpoints.iter().rev().filter(|c| c.pass_end > 1);
                 let last = useful.next().copied();

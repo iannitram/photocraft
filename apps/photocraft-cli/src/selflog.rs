@@ -70,7 +70,8 @@ pub fn version_text() -> String {
     version_text_of(photocraft_engine::build_info::long_version(), photocraft_engine::build_info::short_sha().is_some())
 }
 
-/// [`version_text`] as a `'static` str, for clap's `version` attribute.
+/// [`version_text`] worked out once, for a `&'static str` such as clap's `version` (`--version`
+/// names the commit of a local build, not "(dev build)").
 pub fn version_text_static() -> &'static str {
     static TEXT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     TEXT.get_or_init(version_text)

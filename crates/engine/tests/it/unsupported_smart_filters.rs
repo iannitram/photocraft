@@ -34,8 +34,8 @@ fn cache(s: &Session, id: LayerId) -> photocraft_raster::Surface {
     sm.cache.clone().unwrap()
 }
 
-fn png() -> Vec<u8> {
-    let image = photocraft_codecs::Image::from_u8(8, 8, photocraft_codecs::ChannelLayout::Rgb, vec![0; 8 * 8 * 3]).unwrap();
+fn png(width: u32, height: u32) -> Vec<u8> {
+    let image = photocraft_codecs::Image::from_u8(width, height, photocraft_codecs::ChannelLayout::Rgb, vec![0; (width * height * 3) as usize]).unwrap();
     photocraft_codecs::encode(&image, photocraft_codecs::Format::Png, &Default::default()).unwrap()
 }
 
@@ -55,10 +55,21 @@ fn geometry_edits_keep_the_stored_render_of_an_unsupported_filter() {
 #[test]
 fn replacing_contents_reports_the_filters_it_cannot_apply() {
     let (mut s, id) = mockup();
-    let r = smart_cmds::replace_contents_bytes(&mut s, id, "new.png", png()).unwrap();
+    // The same pixel size as the mockup's contents (40 x 30), so the only warning is the filter's.
+    let r = smart_cmds::replace_contents_bytes(&mut s, id, "new.png", png(40, 30)).unwrap();
     let warnings = r["warnings"].as_array().unwrap();
     assert_eq!(warnings.len(), 1, "{r}");
     assert!(warnings[0].as_str().unwrap().contains("Sharpen"), "{r}");
+}
+
+#[test]
+fn contents_of_another_size_add_the_size_warning_after_the_filter_one() {
+    let (mut s, id) = mockup();
+    let r = smart_cmds::replace_contents_bytes(&mut s, id, "new.png", png(8, 8)).unwrap();
+    let warnings = r["warnings"].as_array().unwrap();
+    assert_eq!(warnings.len(), 2, "{r}");
+    assert!(warnings[0].as_str().unwrap().contains("Sharpen"), "{r}");
+    assert!(warnings[1].as_str().unwrap().contains("keeps its scale"), "{r}");
 }
 
 #[test]
