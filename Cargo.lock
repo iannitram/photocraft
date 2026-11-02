@@ -1389,6 +1389,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-log"
+version = "0.1.0"
+dependencies = [
+ "craft-stage",
+ "log",
+]
+
+[[package]]
 name = "craft-print"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955caffb5bee5997aebf7#c5a1cbfb5f9049f9270955caffb5bee5997aebf7"
@@ -1401,6 +1409,10 @@ dependencies = [
  "winprint",
  "winsafe",
 ]
+
+[[package]]
+name = "craft-stage"
+version = "0.1.0"
 
 [[package]]
 name = "craft-ui"
@@ -4972,6 +4984,7 @@ dependencies = [
  "chrono",
  "clap",
  "core-graphics2",
+ "craft-log",
  "craft-update",
  "dispatch2",
  "eframe",
@@ -4997,6 +5010,7 @@ dependencies = [
  "photocraft-raster",
  "photocraft-tablet",
  "photocraft-ui-egui",
+ "photocraft-wayland-drop",
  "plist",
  "resvg",
  "rfd",
@@ -5007,6 +5021,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror 2.0.21",
+ "wayland-client",
  "winit",
  "winresource",
  "winsafe",
@@ -5030,7 +5045,9 @@ dependencies = [
 name = "photocraft-algo"
 version = "0.19.0"
 dependencies = [
+ "craft-stage",
  "criterion",
+ "log",
  "photocraft-color",
  "photocraft-geom",
  "photocraft-raster",
@@ -5073,6 +5090,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "clap_mangen",
+ "craft-log",
  "photocraft-automation",
  "photocraft-codecs",
  "photocraft-engine",
@@ -5406,6 +5424,7 @@ name = "photocraft-ui-egui"
 version = "0.19.0"
 dependencies = [
  "base64 0.23.1",
+ "craft-log",
  "craft-print",
  "craft-ui",
  "craft-update",
@@ -5455,6 +5474,15 @@ dependencies = [
  "photocraft-geom",
  "photocraft-raster",
  "rayon",
+]
+
+[[package]]
+name = "photocraft-wayland-drop"
+version = "0.19.0"
+dependencies = [
+ "rustix 1.1.5",
+ "wayland-backend",
+ "wayland-client",
 ]
 
 [[package]]
