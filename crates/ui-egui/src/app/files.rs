@@ -142,7 +142,7 @@ impl PhotocraftApp {
         self.ui.status = crate::i18n::fmt(tl!("Opened {name}"), &[("name", name)]);
         self.ui.status_error = false;
         notices::io_warnings(self, &crate::i18n::fmt(tl!("Opened {name}"), &[("name", name)]), &warnings);
-        missing_font_prompt::document_opened(self);
+        crate::missing_font_prompt::document_opened(self);
         Ok(warnings)
     }
 

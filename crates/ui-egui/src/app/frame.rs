@@ -330,7 +330,7 @@ impl PhotocraftApp {
         camera_raw_ui::show(self, &ctx);
         wide_angle_ui::show(self, &ctx);
         canvas::extra_windows(self, &ctx);
-        missing_font_prompt::tick(self);
+        crate::missing_font_prompt::tick(self);
         notices::show(self, &ctx);
         updates_ui::show(self, &ctx);
         gpu_status::show_fallback(self, &ctx);

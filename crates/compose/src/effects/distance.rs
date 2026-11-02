@@ -342,6 +342,7 @@ fn covered(s: &Map, test: impl Fn(f32) -> bool + Sync) -> Vec<bool> {
 
 /// Distance from each pixel centre inside the shape to the shape's edge
 /// (≤ 0 outside).
+#[cfg(test)]
 pub(super) fn dist_inside(s: &Map) -> Vec<f32> {
     dist_inside_by(s, Metric::Euclidean)
 }

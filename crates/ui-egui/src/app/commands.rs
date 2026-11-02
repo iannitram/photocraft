@@ -22,7 +22,7 @@ impl PhotocraftApp {
             self.session.authorize = None;
         }
         if let Ok(value) = &result {
-            missing_font_prompt::command_ran(self, id, value);
+            crate::missing_font_prompt::command_ran(self, id, value);
         }
         // An explicit channel target (⌘2, ⌘\, ⌘3…) decides what the Layers panel targets too:
         // ⌘2 after the mask was targeted goes back to the layer's pixels.
