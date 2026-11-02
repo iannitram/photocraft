@@ -126,11 +126,25 @@ pub(crate) fn batch_runs(plan: &Plan<'_>) -> Vec<usize> {
         .collect();
     let lead = |p: &plan::Pass<'_>| p.kernel == Kernel::LayerBlend && p.clip.is_none() && !p.gradient;
     let extra = |p: &plan::Pass<'_>| lead(p) && p.mask.is_none() && p.flags & plan::F_TEXT_GAMMA == 0 && p.mode != photocraft_color::BlendMode::Dissolve;
+    // A run never crosses the checkpoint after every `BATCH`th root layer (`is_anchor`). Whatever
+    // is stacked above such a checkpoint, a run starts there, so a prefix captured at it stays
+    // resumable when a layer is pasted, duplicated or undone above it (the cache drops chunks that
+    // sit inside a run, and a run can absorb any other boundary once a layer is added above it).
+    let mut cut = vec![false; n + 1];
+    for c in plan.checkpoints.iter().filter(|c| is_anchor(c)) {
+        if let Some(f) = cut.get_mut(c.pass_end) {
+            *f = true;
+        }
+    }
     (0..n)
         .map(|i| {
             let Some(first) = passes.get(i).filter(|p| lead(p)) else { return 1 };
             let (mut k, mut best) = (1, 1);
-            while k < BATCH && feeds_next.get(i + k - 1).copied().unwrap_or(false) && passes.get(i + k).is_some_and(extra) {
+            while k < BATCH
+                && feeds_next.get(i + k - 1).copied().unwrap_or(false)
+                && passes.get(i + k).is_some_and(extra)
+                && !cut.get(i + k).copied().unwrap_or(false)
+            {
                 k += 1;
                 if passes.get(i + k - 1).is_some_and(|p| Some(p.dst) != first.a) {
                     best = k;
@@ -139,6 +153,12 @@ pub(crate) fn batch_runs(plan: &Plan<'_>) -> Vec<usize> {
             best
         })
         .collect()
+}
+
+/// A checkpoint every run starts at, whatever the plan holds above it: the one after each
+/// `BATCH`th root layer. The prefix cache captures at these (#56).
+pub(crate) fn is_anchor(c: &plan::Checkpoint) -> bool {
+    c.layer_end.is_multiple_of(BATCH)
 }
 
 /// For each pass and the end of the plan, whether the executor draws `runs` (`batch_runs`) so

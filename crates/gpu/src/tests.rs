@@ -1,3 +1,4 @@
+use super::batch::is_anchor;
 use super::*;
 
 /// A run joins `LayerBlend` passes that only feed each other, at most `BATCH` of them, and
@@ -46,6 +47,16 @@ fn plain_layers_batch_and_runs_stop_where_a_pass_must_stand_alone() {
     assert_eq!(starts.iter().enumerate().filter(|(_, s)| **s).map(|(i, _)| i).collect::<Vec<_>>(), [at, vec![runs.len()]].concat());
     let resumable = p.checkpoints.iter().filter(|c| c.pass_end > 1 && starts[c.pass_end]).count();
     assert!(resumable >= 2 && resumable < p.checkpoints.len(), "{resumable} of {:?}", p.checkpoints);
+    // The checkpoint after every BATCH-th layer is a run start whatever lies above it, so a
+    // layer added on top (a paste, a duplicate, an undo of either) keeps those resumable (#56).
+    let fixed: Vec<_> = p.checkpoints.iter().filter(|c| is_anchor(c) && c.pass_end > 1).collect();
+    assert!(fixed.len() >= 2 && fixed.iter().all(|c| starts[c.pass_end]), "{:?}", p.checkpoints);
+    let mut taller = d.clone();
+    let mut l = Layer::raster("top", taller.pixel_format());
+    l.surface_mut().unwrap().fill_rect(Rect::new(0, 0, 8, 8), &[0.9, 0.1, 0.1, 0.5]);
+    taller.layers.push(l);
+    let starts2 = run_starts(&batch_runs(&plan::plan(&taller).unwrap()));
+    assert!(fixed.iter().all(|c| starts2[c.pass_end]));
     // A masked or Dissolve layer, or a clipped one, never joins a run as an extra layer.
     d.layers[3].mask = Some(LayerMask::hide_all());
     d.layers[6].blend = BlendMode::Dissolve;

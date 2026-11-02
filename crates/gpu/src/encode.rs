@@ -1,4 +1,4 @@
-use super::batch::{batch_runs, run_starts, submit_batch, tile_grid};
+use super::batch::{batch_runs, is_anchor, run_starts, submit_batch, tile_grid};
 use super::consts::{FLUSH_BYTES, FLUSH_OPS, FLUSH_WORK, PATTERN_IDLE_FRAMES};
 use super::convert::lut_texture;
 use super::kit::FrameRes;
@@ -169,7 +169,7 @@ impl Compositor {
         let checkpoint = if flush {
             let starts = run_starts(&runs);
             let resumable: Vec<_> = plan.checkpoints.iter().filter(|c| starts.get(c.pass_end).copied().unwrap_or(false)).copied().collect();
-            self.prefix.prepare(doc, &resumable)
+            self.prefix.prepare(doc, &resumable, is_anchor)
         } else {
             None
         };
