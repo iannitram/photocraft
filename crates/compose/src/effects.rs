@@ -45,12 +45,12 @@ pub use blur::tent_kernel;
 #[cfg(test)]
 use blur::{blur, box_line, dilate, tent, tent_direct};
 pub(crate) use composite::{VectorStroke, build_maps_prepared, composite_with_effects_prepared, map_count};
-pub use composite::{stroke_replace, stroke_replaces, build_maps, composite_with_effects, outline_share, premerges_layer, shadow_see_through, stroke_widths};
+pub use composite::{build_maps, composite_with_effects, outline_share, premerges_layer, shadow_see_through, stroke_replace, stroke_replaces, stroke_widths};
 pub use distance::{FieldKind, STROKE_CHAMFER_MAX, bevel_distance_fields, distance_field, stroke_outside_exact};
 #[cfg(test)]
 use distance::{
-    SharpEdges, THREADS, bevel_dist_inside, bevel_dist_outside, chamfer_nearest, dist_inside, glow_dist_inside, dist_outside, edge_offset, edt, edt_nearest, par_units,
-    sharp_edges,
+    SharpEdges, THREADS, bevel_dist_inside, bevel_dist_outside, chamfer_nearest, dist_inside, dist_outside, edge_offset, edt, edt_nearest, glow_dist_inside,
+    par_units, sharp_edges,
 };
 use paint::dissolves;
 pub use paint::{

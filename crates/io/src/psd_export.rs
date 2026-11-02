@@ -848,7 +848,14 @@ impl Ex {
                     }
                     let file = crate::doc_path::resolve(path, self.document.as_deref()).map_err(|e| format!("the linked file {path} is not opened: {e}"))?;
                     // Regular files only, in bounded reads: a link to a FIFO would block the save
-                    // and one to a device such as `/dev/zero` would never end (#8601).
+                    // and one to a device such as `/dev/zero` would never end (#8601). The
+                    // metadata check runs first: on Windows a directory fails to open with
+                    // "Access denied", not "not a regular file" (ours' read_linked guard, kept).
+                    match std::fs::metadata(&file) {
+                        Ok(m) if m.is_file() => {}
+                        Ok(_) => return Err(format!("the linked file {path} is not a regular file")),
+                        Err(e) => return Err(format!("the linked file {path} can't be read: {e}")),
+                    }
                     let bytes = photocraft_format::read_file(&file).map_err(|e| format!("the linked file {path} can't be read: {e}"))?;
                     let name = path.rsplit(['/', '\\']).next().unwrap_or(path).to_string();
                     let source = self.embed(sm.contents_id, &name, &bytes, true)?;
