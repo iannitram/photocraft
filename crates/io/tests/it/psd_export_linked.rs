@@ -26,6 +26,7 @@ fn linked_doc(path: &str) -> Document {
             warp: None,
             stack_mode: None,
             perspective: None,
+            vector_preview: None,
         }),
     ));
     d
@@ -45,7 +46,7 @@ fn write_linked_png(stem: &str) -> std::path::PathBuf {
 /// The export either fails or warns, and says why; it never embeds what isn't a file. Two
 /// guards can say it: `doc_path::resolve` (upstream's, via `craft_docpath`) refuses a device
 /// path ("names a device, not a file") or a pipe on a server ("is on another computer") by name
-/// before anything opens it, and `read_linked` (ours) refuses anything left that is not a
+/// before anything opens it, and the read itself (`read_file`) refuses anything left that is not a
 /// regular file.
 fn refuses(path: &str) {
     let said_why =

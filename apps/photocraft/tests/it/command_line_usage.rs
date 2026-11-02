@@ -34,7 +34,7 @@ fn run_with(args: &[&str], vars: &[(&str, &str)]) -> Run {
     let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = std::env::temp_dir().join(format!("photocraft-usage-{}-{n}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_photocraft"));
+    let mut cmd = std::process::Command::new(crate::binary());
     for var in VARS {
         cmd.env_remove(var);
     }
@@ -88,7 +88,13 @@ fn help_wins_over_later_arguments() {
 fn version_prints_the_long_version() {
     let Run { status, stdout, .. } = run_photocraft(&["--version", "--safegpu"]);
     assert_eq!(status.code(), Some(0));
-    assert_eq!(stdout, format!("photocraft {}\n", photocraft_engine::build_info::long_version()));
+    // A build stamped by CI prints upstream's long version; a local build names its commit.
+    let want = if photocraft_engine::build_info::short_sha().is_some() {
+        format!("photocraft {}\n", photocraft_engine::build_info::long_version())
+    } else {
+        format!("photocraft {} (commit ", photocraft_engine::build_info::VERSION)
+    };
+    assert!(stdout.starts_with(&want), "stdout: {stdout}");
 }
 
 #[test]

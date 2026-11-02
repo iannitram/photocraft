@@ -10,7 +10,7 @@ use photocraft_geom::Rect;
 use photocraft_raster::{Cancelled, Interrupt};
 
 use super::gmm::{DEFAULT_REG, Gmm};
-use super::{FREE, HARD_BG, HARD_FG, Region, RgbImage, Sampler, contrast_beta, data_costs, grid_cut_bk, subsample};
+use super::{FREE, HARD_BG, HARD_FG, Region, RgbImage, Sampler, contrast_beta, data_costs, grid_cut_bk_cancellable, subsample};
 
 /// Definite background.
 pub const BG: u8 = 0;
@@ -51,9 +51,8 @@ pub fn grabcut_with(img: &RgbImage, trimap: &mut [u8], iters: usize, ctl: &Inter
         })
         .collect();
     let mut models: Option<(Gmm, Gmm)> = None;
-    for iteration in 0..iters.max(1) {
+    for _ in 0..iters.max(1) {
         ctl.check()?;
-        craft_stage::stage_with("grabcut.models", &[("iteration", (iteration + 1) as f64)]);
         let (mut fs, mut bs) = (Vec::new(), Vec::new());
         for (p, t) in img.px.iter().zip(trimap.iter()) {
             if is_fg(*t) { fs.push(*p) } else { bs.push(*p) }
@@ -67,9 +66,8 @@ pub fn grabcut_with(img: &RgbImage, trimap: &mut [u8], iters: usize, ctl: &Inter
             Some((f, b)) => (f.refit(&fs).unwrap_or_else(|| f.clone()), b.refit(&bs).unwrap_or_else(|| b.clone())),
         };
         let (cf, cb) = data_costs(img, &fg, &bg);
-        craft_stage::stage_with("grabcut.cut", &[("iteration", (iteration + 1) as f64)]);
-        // `grid_cut`'s weight on Boykov–Kolmogorov (ours), stopping on cancel (upstream's #4878).
-        let cut = grid_cut_bk(img, &cf, &cb, &fixed, GAMMA, beta, &cancel).ok_or(Cancelled)?;
+        // `grid_cut`'s weight, with the cut stopping on cancel.
+        let cut = grid_cut_bk_cancellable(img, &cf, &cb, &fixed, |d2| GAMMA * (-beta * d2).exp(), &cancel).ok_or(Cancelled)?;
         let mut changed = 0usize;
         for (t, fgnd) in trimap.iter_mut().zip(&cut) {
             if *t == PR_BG || *t == PR_FG {
