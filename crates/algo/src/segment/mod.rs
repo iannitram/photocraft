@@ -301,6 +301,8 @@ fn grid_cut_weighted<const OPTIMIZED: bool>(img: &RgbImage, cost_fg: &[f32], cos
 /// one that never finishes had passed 1 100 000 steps per free pixel when it was stopped. The
 /// budget is about fifty times what a finishing cut needs, and costs a stuck 4 160-pixel cut
 /// about 30 ms before Boykov–Kolmogorov redoes it in 2 ms.
+/// The nested augment and adopt parent walks in the solver also spend steps, so a cyclic
+/// parent chain cannot evade the budget either.
 pub(crate) const BUDGET_ASKS_PER_FREE_PIXEL: usize = 1;
 /// The least budget, for cuts of a few pixels.
 pub(crate) const BUDGET_ASKS_MIN: usize = 256;

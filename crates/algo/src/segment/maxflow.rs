@@ -26,6 +26,24 @@ const EPS: f32 = 1e-5;
 /// How many steps the max-flow loops take between asks whether to stop.
 pub(super) const CANCEL_EVERY: u32 = 1024;
 
+/// Share the cancellation/step-budget counter across nested solver loops. Counting only queue
+/// pops leaves a stuck discharge, augmenting path or orphan walk outside the budget.
+struct Steps<'a> {
+    count: u32,
+    cancel: &'a dyn Fn() -> bool,
+}
+
+impl<'a> Steps<'a> {
+    fn new(cancel: &'a dyn Fn() -> bool) -> Self {
+        Self { count: 0, cancel }
+    }
+
+    fn step(&mut self) -> Option<()> {
+        self.count = self.count.wrapping_add(1);
+        if self.count.is_multiple_of(CANCEL_EVERY) && (self.cancel)() { None } else { Some(()) }
+    }
+}
+
 fn never() -> bool {
     false
 }
@@ -168,12 +186,9 @@ impl Graph {
             }
         }
         let mut time = 0u32;
-        let mut steps = 0u32;
+        let mut steps = Steps::new(cancel);
         while let Some(i) = queue.pop_front() {
-            steps = steps.wrapping_add(1);
-            if steps.is_multiple_of(CANCEL_EVERY) && cancel() {
-                return None;
-            }
+            steps.step()?;
             let i = i as usize;
             self.active[i] = false;
             if self.parent[i] == NONE {
@@ -219,22 +234,24 @@ impl Graph {
                 queue.push_front(i as u32);
             }
             time += 1;
-            self.augment(contact as usize, &mut orphans);
+            self.augment(contact as usize, &mut orphans, &mut steps)?;
             // Adoption stage.
             while let Some(o) = orphans.pop_front() {
-                self.adopt(o as usize, time, &mut queue, &mut orphans);
+                steps.step()?;
+                self.adopt(o as usize, time, &mut queue, &mut orphans, &mut steps)?;
             }
         }
         Some(self.flow)
     }
 
-    fn augment(&mut self, m: usize, orphans: &mut VecDeque<u32>) {
+    fn augment(&mut self, m: usize, orphans: &mut VecDeque<u32>, steps: &mut Steps<'_>) -> Option<()> {
         let u = self.head[m ^ 1] as usize;
         let v = self.head[m] as usize;
         // Bottleneck.
         let mut b = self.r_cap[m];
         let mut x = u;
         loop {
+            steps.step()?;
             let a = self.parent[x];
             if a == TERMINAL {
                 break;
@@ -245,6 +262,7 @@ impl Graph {
         b = b.min(self.tr_cap[x]);
         let mut x = v;
         loop {
+            steps.step()?;
             let a = self.parent[x];
             if a == TERMINAL {
                 break;
@@ -258,6 +276,7 @@ impl Graph {
         self.r_cap[m] -= b;
         let mut x = u;
         loop {
+            steps.step()?;
             let a = self.parent[x];
             if a == TERMINAL {
                 break;
@@ -279,6 +298,7 @@ impl Graph {
         }
         let mut x = v;
         loop {
+            steps.step()?;
             let a = self.parent[x];
             if a == TERMINAL {
                 break;
@@ -299,9 +319,10 @@ impl Graph {
             orphans.push_back(x as u32);
         }
         self.flow += b as f64;
+        Some(())
     }
 
-    fn adopt(&mut self, i: usize, time: u32, queue: &mut VecDeque<u32>, orphans: &mut VecDeque<u32>) {
+    fn adopt(&mut self, i: usize, time: u32, queue: &mut VecDeque<u32>, orphans: &mut VecDeque<u32>, steps: &mut Steps<'_>) -> Option<()> {
         let sink = self.is_sink[i];
         let mut best = NONE;
         let mut d_min = INF_DIST;
@@ -315,6 +336,7 @@ impl Graph {
                 let mut d = 0u32;
                 let mut k = j;
                 loop {
+                    steps.step()?;
                     if self.ts[k] == time {
                         d = d.saturating_add(self.dist[k]);
                         break;
@@ -341,6 +363,7 @@ impl Graph {
                     let mut k = j;
                     let mut dd = d;
                     while self.ts[k] != time {
+                        steps.step()?;
                         self.ts[k] = time;
                         self.dist[k] = dd;
                         dd -= 1;
@@ -354,7 +377,7 @@ impl Graph {
             self.parent[i] = best;
             self.ts[i] = time;
             self.dist[i] = d_min + 1;
-            return;
+            return Some(());
         }
         // No parent: i becomes free.
         self.parent[i] = NONE;
@@ -376,6 +399,7 @@ impl Graph {
             }
             a = self.next[au];
         }
+        Some(())
     }
 }
 
@@ -414,3 +438,6 @@ impl Graph {
         s
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod budget_tests;

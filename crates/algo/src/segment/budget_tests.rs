@@ -57,6 +57,27 @@ fn a_cut_out_of_steps_is_redone_by_boykov_kolmogorov_and_says_so() {
     }
 }
 
+/// Unlike an elapsed-time assertion after the solve, the receiver fails even if the worker
+/// never returns. Two pre-solve checks are allowed, so this exercises the solver's budget,
+/// rather than stopping before graph construction as the zero-budget test above does.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn a_budget_exhausted_inside_the_solver_falls_back_within_ten_seconds() {
+    let (send, receive) = std::sync::mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        let (img, cost_fg, cost_bg, fixed, beta) = band(15, BIG.0, BIG.1, BIG.2);
+        let weight = |d2: f32| 50.0 * (-beta * d2).exp();
+        let expected = grid_cut_impl::<true>(&img, &cost_fg, &cost_bg, &fixed, weight, &|| false, Solver::Bk);
+        let result = grid_cut_within::<true>(&img, &cost_fg, &cost_bg, &fixed, weight, &|| false, Some(2));
+        send.send((expected, result)).unwrap();
+    });
+    let (expected, (cut, handover)) = receive.recv_timeout(std::time::Duration::from_secs(10)).expect("budgeted synthetic cut did not return in ten seconds");
+    worker.join().unwrap();
+    assert!(expected.is_some());
+    assert_eq!(cut, expected, "the cut must be rebuilt and solved by Boykov–Kolmogorov");
+    assert_eq!(handover, Some(Handover { free: 4320, steps: 3 * u64::from(maxflow::CANCEL_EVERY) }));
+}
+
 #[test]
 fn the_measured_budget_leaves_ordinary_cuts_alone() {
     for (seed, (w, h, edge)) in [(4u64, BIG), (5, BIG), (6, (40, 30, 3)), (7, (96, 48, 4))] {

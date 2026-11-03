@@ -204,3 +204,16 @@ fn stranded_excess_terminates_and_matches_bk() {
     assert!((flow - bk_flow).abs() <= 1e-6 * bk_flow, "{flow} vs {bk_flow}");
     assert_eq!((0..6).map(|i| g.in_source(i)).collect::<Vec<_>>(), (0..6).map(|i| bk.in_source(i)).collect::<Vec<_>>());
 }
+
+#[test]
+fn global_relabel_spends_steps_inside_its_walk() {
+    let n = super::super::CANCEL_EVERY as usize + 1;
+    let mut g = Graph::with_capacity(n, n - 1);
+    g.add_tweights(n - 1, 0.0, 1.0);
+    for i in 1..n {
+        g.add_edge(i - 1, i, 1.0, 1.0);
+    }
+    let cancel = || true;
+    let mut steps = Steps::new(&cancel);
+    assert_eq!(g.global_relabel(n as u32 + 2, &vec![0.0; n], &mut steps), None);
+}
