@@ -3,6 +3,7 @@
 mod command_line_usage;
 mod control_exit_code;
 mod startup_without_display;
+mod version_names_its_commit;
 
 /// Nextest archives relocate binaries; plain Cargo keeps the compile-time path valid.
 fn binary() -> std::ffi::OsString {
