@@ -1506,6 +1506,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-log"
+version = "0.1.0"
+dependencies = [
+ "craft-stage",
+ "log",
+]
+
+[[package]]
 name = "craft-metadata"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=163f1b20315ffacaf8a6e085f4ae7fc568c08ff2#163f1b20315ffacaf8a6e085f4ae7fc568c08ff2"
@@ -1701,6 +1709,10 @@ dependencies = [
  "zune-core",
  "zune-jpeg",
 ]
+
+[[package]]
+name = "craft-stage"
+version = "0.1.0"
 
 [[package]]
 name = "craft-svg"
@@ -5516,6 +5528,7 @@ dependencies = [
  "craft-cms",
  "craft-flags",
  "craft-image-codecs",
+ "craft-log",
  "craft-svg",
  "craft-update",
  "craft-xml",
@@ -5541,6 +5554,7 @@ dependencies = [
  "photocraft-raster",
  "photocraft-tablet",
  "photocraft-ui-egui",
+ "photocraft-wayland-drop",
  "plist",
  "rfd",
  "ron",
@@ -5549,6 +5563,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror 2.0.21",
+ "wayland-client",
  "winit",
  "winresource",
  "winsafe",
@@ -5563,6 +5578,7 @@ name = "photocraft-algo"
 version = "0.23.1"
 dependencies = [
  "craft-metadata 0.1.0 (git+https://github.com/storytold/craft-libs?rev=163f1b20315ffacaf8a6e085f4ae7fc568c08ff2)",
+ "craft-stage",
  "criterion",
  "photocraft-color",
  "photocraft-geom",
@@ -5618,6 +5634,7 @@ dependencies = [
  "clap_mangen",
  "craft-cms",
  "craft-image-codecs",
+ "craft-log",
  "craft-psd 0.1.0 (git+https://github.com/storytold/craft-libs?rev=eafb50aff3c6b1acc14dff53060157877e3e4fce)",
  "photocraft-automation",
  "photocraft-doc",
@@ -5944,6 +5961,7 @@ dependencies = [
  "craft-file-formats",
  "craft-i18n",
  "craft-image-codecs",
+ "craft-log",
  "craft-print",
  "craft-psd 0.1.0 (git+https://github.com/storytold/craft-libs?rev=eafb50aff3c6b1acc14dff53060157877e3e4fce)",
  "craft-ui",
@@ -5993,6 +6011,15 @@ dependencies = [
  "photocraft-geom",
  "photocraft-raster",
  "rayon",
+]
+
+[[package]]
+name = "photocraft-wayland-drop"
+version = "0.23.1"
+dependencies = [
+ "rustix 1.1.5",
+ "wayland-backend",
+ "wayland-client",
 ]
 
 [[package]]

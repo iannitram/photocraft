@@ -23,7 +23,7 @@ fn new_type_layer_does_not_take_an_imported_layers_text_index() {
     let mut d = doc();
     let fresh = text(&d, "NEW", Kerning::Metrics);
     let mut imported = text(&d, "AV", Kerning::Optical);
-    let raw = photocraft_text::psd::build_tysh(&imported, d.resolution_dpi, None);
+    let raw = photocraft_text::psd::build_tysh(&imported, d.resolution_dpi, None).unwrap();
     imported.psd_raw = Some(std::sync::Arc::new(photocraft_text::psd::set_text_index(&raw, 0).unwrap()));
     // The new layer comes first in walk order.
     d.layers.push(Layer::new("new", LayerContent::Text(fresh)));
@@ -58,7 +58,7 @@ fn group_divider_ids_after_a_max_layer_id_stay_unique() {
     d.layers.push(top);
 
     let bytes = photocraft_io::export(&d, "ids.psd", &Default::default()).unwrap().bytes;
-    let file = photocraft_psd::PsdFile::from_bytes(&bytes).unwrap();
+    let file = craft_psd::PsdFile::from_bytes(&bytes).unwrap();
     let ids: Vec<u32> = file.layers().iter().filter_map(|r| r.layer_id()).collect();
     assert_eq!(ids.len(), file.layers().len(), "every record carries an lyid");
     assert!(!ids.contains(&0), "{ids:?}");

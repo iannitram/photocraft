@@ -136,7 +136,7 @@ impl PhotocraftApp {
         // Native Wayland: winit delivers no drops, the listener does; same routing as above.
         let wayland = self.services.wayland_drops.as_mut().map(|poll| poll()).unwrap_or_default();
         for (paths, at) in wayland {
-            let files = paths.into_iter().map(|p| std::sync::Arc::new(file_open::PathDrop(p)) as egui::DroppedFileHandle).collect();
+            let files = paths.into_iter().map(|p| std::sync::Arc::new(crate::file_open::PathDrop(p)) as egui::DroppedFileHandle).collect();
             self.open_dropped(ctx, files, at);
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         }
