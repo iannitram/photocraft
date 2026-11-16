@@ -7,7 +7,9 @@
 #
 # Columns, separated by a TAB:  locale <TAB> context <TAB> source <TAB> translation. The last three
 # are a craft-i18n catalog row (its `docs/catalog-format.md`: escapes, `{name}` placeholders).
-# `i18n::tests::every_fork_row_resolves_in_every_complete_catalog` checks every source here.
+# `i18n::tests::every_fork_row_resolves_in_every_complete_catalog` checks every source here: a
+# string with rows in several languages must resolve in every complete catalog, and a gap fill (rows
+# in one language only) in its own language.
 #
 # Recovered from the fork's own catalogs before the move to craft-i18n
 # (`origin/ours:crates/ui-egui/src/i18n/<code>.tsv`; `sr` there is `sr-latn` here).
@@ -247,3 +249,242 @@ ka		Choose an installed font for the text, or undo to bring back the text as it 
 ka		Fonts used in this document are not installed	ამ დოკუმენტში გამოყენებული შრიფტები დაყენებული არ არის
 ka		Type layers look as they were saved until their text is edited.	ტექსტური შრეები შენახვისდროინდელ სახეს ინარჩუნებს, სანამ მათ ტექსტს არ დაარედაქტირებთ.
 ka		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	აირჩიეთ ფორმატი, რომელიც მას შეინარჩუნებს, მაგალითად PhotoCraft (.pcraft), ან შეინახეთ ასლი.
+#
+# Gap fills (zh-hans only): the fork's machine translations from 763555d36 (P026-P032) of
+# PhotoCraft strings that craft-i18n's zh-hans catalogs have no row for. Reviewed 2026-10-17, not
+# yet checked by a native speaker. Rows equal to their English source were left out.
+zh-hans	@id	select.all	全选
+zh-hans	@id	edit.stroke	描边…
+zh-hans	@id	edit.transform.scale	缩放
+zh-hans	@id	edit.purge.undo	撤销历史
+zh-hans	cameraRaw	Red	红色
+zh-hans	cameraRaw	Orange	橙色
+zh-hans	cameraRaw	Yellow	黄色
+zh-hans	cameraRaw	Green	绿色
+zh-hans	cameraRaw	Aqua	水绿色
+zh-hans	cameraRaw	Blue	蓝色
+zh-hans	cameraRaw	Purple	紫色
+zh-hans	cameraRaw	Magenta	洋红
+zh-hans	cameraRaw	Luminance	亮度
+zh-hans	cameraRaw	Temperature	色温
+zh-hans	cameraRaw	Color	颜色
+zh-hans		32-bit Preview Options	32 位预览选项
+zh-hans		About {app}	关于 {app}
+zh-hans		Actual Pixels	实际像素
+zh-hans		Adaptive Wide Angle	自适应广角
+zh-hans		Add Noise	添加杂色
+zh-hans		Add to	添加到
+zh-hans		Adjust Interval For Loops	调整循环间隔
+zh-hans		Adjustment	调整
+zh-hans		Adjustment Layers	调整图层
+zh-hans		Adjustment Properties	调整属性
+zh-hans		Advanced Blending	高级混合
+zh-hans		After	之后
+zh-hans		Alternative	替代
+zh-hans		Ambience	环境
+zh-hans		Ambient	环境光
+zh-hans		Amplitude Max	振幅最大值
+zh-hans		Amplitude Min	振幅最小值
+zh-hans		Angled Strokes	倾斜笔触
+zh-hans		Anisotropic	各向异性
+zh-hans		Aperture	光圈
+zh-hans		Apply Image	应用图像
+zh-hans		Apply Layer Comp	应用图层复合
+zh-hans		Apply Mask	应用蒙版
+zh-hans		Arbitrary	任意
+zh-hans		Arch	拱形
+zh-hans		Around Center	围绕中心
+zh-hans		Arrangement	排列
+zh-hans		Artboard from Group	从组创建画板
+zh-hans		Artboard from Layers	从图层创建画板
+zh-hans		Artist	艺术家
+zh-hans		Assign Profile	指定配置文件
+zh-hans		At	在
+zh-hans		Auto Scale	自动缩放
+zh-hans		Auto-Align Layers	自动对齐图层
+zh-hans		Auto-Blend Layers	自动混合图层
+zh-hans		Back	返回
+zh-hans		Background Level	背景级别
+zh-hans		Bamboo	竹子
+zh-hans		Bas Relief	浅浮雕
+zh-hans		Base Tree Type	基础树类型
+zh-hans		Before	之前
+zh-hans		Berries	浆果
+zh-hans		Best	最佳
+zh-hans		Black Clip	黑色剪切
+zh-hans		Blade Curvature	叶片弯度
+zh-hans		Blast	大风
+zh-hans		Bleach Bypass	漂白旁路
+zh-hans		Blue Yellow	蓝黄
+zh-hans		Bold Italic	粗斜体
+zh-hans		Box Blur	方框模糊
+zh-hans		Branches Color	树枝颜色
+zh-hans		Branches Height	树枝高度
+zh-hans		Branches Thickness	树枝粗细
+zh-hans		Bristle Detail	刷毛细节
+zh-hans		Brush Detail	画笔细节
+zh-hans		Brush Type	画笔类型
+zh-hans		Calculations	计算
+zh-hans		Camera Calibration	相机校准
+zh-hans		Camera Raw Filter	Camera Raw 滤镜
+zh-hans		Candle Light	蜡烛光
+zh-hans		Canvas Size	画布大小
+zh-hans		Chalk & Charcoal	粉笔和木炭
+zh-hans		Chalk Area	粉笔区域
+zh-hans		Channel1	通道 1
+zh-hans		Channel2	通道 2
+zh-hans		Channel3	通道 3
+zh-hans		Channel4	通道 4
+zh-hans		Charcoal	木炭
+zh-hans		Charcoal Area	木炭区域
+zh-hans		Charcoal Thickness	木炭粗细
+zh-hans		Chrome	铬黄
+zh-hans		Circularity	圆形度
+zh-hans		Cleanliness	洁净度
+zh-hans		Clear Amount	清除量
+zh-hans		Clipping Path	剪切路径
+zh-hans		Close Window	关闭窗口
+zh-hans		Clumped	簇状
+zh-hans		Color Decontaminate	净化颜色
+zh-hans		Color Halftone	彩色半调
+zh-hans		Color Lookup Tables	颜色查找表
+zh-hans		Color Range	色彩范围
+zh-hans		Color indicates	色彩指示
+zh-hans		Colored Pencil	彩色铅笔
+zh-hans		Compose	合成
+zh-hans		Condensed	紧缩
+zh-hans		Conditional Mode Change	条件模式转换
+zh-hans		Confirm	确认
+zh-hans		Constraints	约束
+zh-hans		Content-Aware Move	内容感知移动
+zh-hans		Contrasty	高对比度
+zh-hans		Conté Crayon	炭精笔
+zh-hans		Convert to Linked	转换为链接对象
+zh-hans		Convert to Profile	转换为配置文件
+zh-hans		Cool	冷色调
+zh-hans		Cooling L B B	冷却滤镜 (LBB)
+zh-hans		Cooling80	冷却滤镜 (80)
+zh-hans		Cooling82	冷却滤镜 (82)
+zh-hans		Copyright Status	版权状态
+zh-hans		Copyrighted	受版权保护
+zh-hans		Correct C A	校正色差
+zh-hans		Correct Distortion	校正畸变
+zh-hans		Correct Vignette	校正晕影
+zh-hans		Craquelure	龟裂效果
+zh-hans		Create By	创建方式
+zh-hans		Cross Process	交叉处理
+zh-hans		Curve Darks	曲线暗部
+zh-hans		Curve Highlights	曲线高光
+zh-hans		Curve Lights	曲线亮部
+zh-hans		Curve Shadows	曲线阴影
+zh-hans		Curve Splits	曲线分割
+zh-hans		Custom Branch Color	自定义树枝颜色
+zh-hans		Cutout	剪贴画
+zh-hans		Daisies	雏菊
+zh-hans		Dark Intensity	暗部强度
+zh-hans		Dark Rough	暗部粗糙度
+zh-hans		Darken Only	仅加深
+zh-hans		Day For Night	夜景效果
+zh-hans		Deep Blue	深蓝色
+zh-hans		Deep Emerald	深翠绿
+zh-hans		Deep Red	深红色
+zh-hans		Deep Yellow	深黄色
+zh-hans		Default Foreground and Background Colors	默认前景和背景颜色
+zh-hans		Default Leaves	默认叶片
+zh-hans		Defaults	默认值
+zh-hans		Define Brush Preset	定义画笔预设
+zh-hans		Define Custom Shape	定义自定形状
+zh-hans		Define Pattern	定义图案
+zh-hans		Definition	定义
+zh-hans		Defringe	去边
+zh-hans		Degrees	度数
+zh-hans		Delete Path	删除路径
+zh-hans		Depth Map	深度图
+zh-hans		Depth Mode	深度模式
+zh-hans		Diffuse	扩散
+zh-hans		Disable	禁用
+zh-hans		Disabled	已禁用
+zh-hans		Displace	置换
+zh-hans		Distribution	分布
+zh-hans		Documentation	说明文档
+zh-hans		Double Line	双线
+zh-hans		Dry Brush	干画笔
+zh-hans		Duplicate Layer Comp	复制图层复合
+zh-hans		Duplicate Layers	复制图层
+zh-hans		Duplicate Path	复制路径
+zh-hans		Dust & Scratches	蒙尘与划痕
+zh-hans		Edge Extension	边缘扩展
+zh-hans		Edge Fidelity	边缘保真度
+zh-hans		End X	结束 X
+zh-hans		End Y	结束 Y
+zh-hans		Errors	错误
+zh-hans		Export Contents	导出内容
+zh-hans		Export Preferences	导出首选项
+zh-hans		Export Settings	导出设置
+zh-hans		Export/Import Presets	导出/导入预设
+zh-hans		Extensions	扩展
+zh-hans		Extra Bold	超粗体
+zh-hans		Extra Light	超细体
+zh-hans		Extrude	凸出
+zh-hans		Failed	失败
+zh-hans		Fiber Length	纤维长度
+zh-hans		Fibers	纤维
+zh-hans		Field Blur	场景模糊
+zh-hans		File Info	文件信息
+zh-hans		Filename	文件名
+zh-hans		Fill Color	填充颜色
+zh-hans		Fill Path	填充路径
+zh-hans		Film Grain	胶片颗粒
+zh-hans		Filter Gallery	滤镜库
+zh-hans		Fine	精细
+zh-hans		First Line Indent	首行缩进
+zh-hans		Fish	鱼形
+zh-hans		Fit Image	适配图像
+zh-hans		Flag	旗帜
+zh-hans		Flame	火焰
+zh-hans		Flame Bottom Alignment	火焰底部对齐
+zh-hans		Flame Lines	火焰线条
+zh-hans		Flame Shape	火焰形状
+zh-hans		Flame Style	火焰样式
+zh-hans		Flame Type	火焰类型
+zh-hans		Flat	平面
+zh-hans		Flat Shading	平面着色
+zh-hans		Flower Color	花朵颜色
+zh-hans		Focal Distance	焦点距离
+zh-hans		Focal Length35mm	焦距（35 毫米等效）
+zh-hans		Focus Area	焦点区域
+zh-hans		Foreground Level	前景级别
+zh-hans		Fresco	湿壁画
+zh-hans		From Left	从左侧
+zh-hans		From Right	从右侧
+zh-hans		Fullscreen	全屏
+zh-hans		Fuzziness	容差
+zh-hans		Generators	生成器
+zh-hans		Generic	通用
+zh-hans		Global Light	全局光
+zh-hans		Gloss	光泽
+zh-hans		Glow Amount	发光量
+zh-hans		Glowing Edges	发光边缘
+zh-hans		Glyph	字形
+zh-hans		Grade Balance	分级平衡
+zh-hans		Grade Blending	分级混合
+zh-hans		Grade Global	分级全局
+zh-hans		Grade Highlights	分级高光
+zh-hans		Grade Midtones	分级中间调
+zh-hans		Grade Shadows	分级阴影
+zh-hans		Grain Amount	颗粒量
+zh-hans		Grain Roughness	颗粒粗糙度
+zh-hans		Grain Size	颗粒大小
+zh-hans		Graphic Pen	图形笔
+zh-hans		Graphic and web	图形和网页
+zh-hans		Gray Value (Maximum)	灰度值（最大）
+zh-hans		Gray Value (Mean)	灰度值（平均）
+zh-hans		Gray Value (Median)	灰度值（中位数）
+zh-hans		Gray Value (Minimum)	灰度值（最小）
+zh-hans		Group · {n} layer	组 · {n} 个图层
+zh-hans		HDR Toning	HDR 色调
+zh-hans		Heal	修复
+zh-hans		Healing	修复
+zh-hans		Hearts	心形
+zh-hans		Heptagon	七边形
+zh-hans		Hide {app}	隐藏 {app}

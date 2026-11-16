@@ -525,7 +525,9 @@ fn raw_develop_labels_are_translated_in_every_shipped_catalog() {
 }
 
 /// Every string of the fork's own overlay (`fork-i18n.tsv`, ours) resolves to a translation in
-/// every complete catalog, and each row names a registered language.
+/// every complete catalog, and each row names a registered language. A gap fill (a string the
+/// overlay has rows for in one language only, such as the zh-hans rows craft-i18n lacks) resolves
+/// in that language.
 #[test]
 fn every_fork_row_resolves_in_every_complete_catalog() {
     let rows: Vec<(&str, &str, &str)> = include_str!("../../fork-i18n.tsv")
@@ -544,11 +546,17 @@ fn every_fork_row_resolves_in_every_complete_catalog() {
     if !needs_catalogs() {
         return;
     }
-    let mut keys: Vec<(&str, &str)> = rows.iter().map(|(_, context, source)| (*context, *source)).collect();
-    keys.sort_unstable();
-    keys.dedup();
-    for lang in Lang::all().filter(|l| l.complete_menus()) {
-        for (context, source) in &keys {
+    let mut locales: std::collections::BTreeMap<(&str, &str), Vec<&str>> = std::collections::BTreeMap::new();
+    for (code, context, source) in &rows {
+        locales.entry((*context, *source)).or_default().push(*code);
+    }
+    for lang in Lang::all() {
+        for ((context, source), codes) in &locales {
+            let gap_fill = codes.len() == 1;
+            let wanted = if gap_fill { codes.contains(&lang.code()) } else { lang.complete_menus() };
+            if !wanted {
+                continue;
+            }
             let translated = lang.i18n().get(lang.lang, context, source);
             assert!(translated.is_some_and(|t| t != *source), "{}: {context:?} {source:?} has no translation", lang.code());
         }
