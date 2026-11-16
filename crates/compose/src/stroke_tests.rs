@@ -303,7 +303,7 @@ fn stroke_below_full_opacity_shows_the_backdrop_not_the_fill() {
 }
 
 #[test]
-fn stroke_replacement_leaves_full_opacity_and_other_modes_alone() {
+fn a_full_opacity_stroke_and_other_modes_paint_as_before() {
     // 100 %: the band is the stroke either way.
     let mut d = doc(40, 40);
     stroked_pixels(&mut d, FxCommon::new(BlendMode::Normal, 1.0), StrokePosition::Inside);
@@ -312,44 +312,6 @@ fn stroke_replacement_leaves_full_opacity_and_other_modes_alone() {
     let mut d = doc(40, 40);
     stroked_pixels(&mut d, FxCommon::new(BlendMode::Multiply, 0.5), StrokePosition::Inside);
     assert!(close4(px(&d, 10, 20), [0.0, 0.0, 0.5, 1.0]), "{:?}", px(&d, 10, 20));
-    assert!(effects::stroke_replaces(&StrokeFx {
-        common: FxCommon::new(BlendMode::Normal, 0.99),
-        size: 1.0,
-        position: StrokePosition::Inside,
-        overprint: false,
-        paint: blue()
-    }));
-    assert!(!effects::stroke_replaces(&StrokeFx {
-        common: FxCommon::new(BlendMode::Normal, 1.0),
-        size: 1.0,
-        position: StrokePosition::Inside,
-        overprint: false,
-        paint: blue()
-    }));
-    assert!(!effects::stroke_replaces(&StrokeFx {
-        common: FxCommon::new(BlendMode::Multiply, 0.5),
-        size: 1.0,
-        position: StrokePosition::Inside,
-        overprint: false,
-        paint: blue()
-    }));
-}
-
-#[test]
-fn stroke_replace_mixes_the_band_and_the_rest_of_the_pixel() {
-    let (white, black) = ([1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 1.0]);
-    // The whole pixel in the band: the stroke at its opacity.
-    assert!(close4(effects::stroke_replace(white, black, 1.0, 0.25), [0.0, 0.0, 0.0, 0.25]));
-    // Half of it: half the layer, plus the stroke's eighth.
-    let p = effects::stroke_replace(white, black, 0.5, 0.25);
-    assert!((p[3] - 0.625).abs() < 1e-6 && (p[0] - 0.8).abs() < 1e-6, "{p:?}");
-    // Not in the band, or a see-through layer under a see-through stroke: no NaN, no change.
-    assert_eq!(effects::stroke_replace(white, black, 0.0, 0.25), white);
-    assert_eq!(effects::stroke_replace([0.2, 0.4, 0.6, 0.0], black, 1.0, 0.0), [0.2, 0.4, 0.6, 0.0]);
-    // A stroke at 100 % of an opaque ink equals painting it over the layer.
-    assert!(close4(effects::stroke_replace(white, black, 0.5, 1.0), [0.5, 0.5, 0.5, 1.0]));
-    // Out-of-range input is clamped.
-    assert!(close4(effects::stroke_replace(white, black, 7.0, 3.0), [0.0, 0.0, 0.0, 1.0]));
 }
 
 #[test]

@@ -34,8 +34,8 @@ use planner::Planner;
 #[cfg(test)]
 use planner::blend_if_params;
 pub use planner::{
-    F_ADD_DIFF, F_ATOP, F_BLEND_IF, F_CHANNELS, F_FIRST, F_GATE, F_HDR, F_KNOCKOUT, F_LAB, F_LAYER_SHAPE, F_NO_LAYER, F_OUTLINE, F_QUANT, F_REL, F_REPLACE,
-    F_STROKE_OUT, F_TEXT_GAMMA, F_VECTOR, INIT_ALPHA, INIT_COVER, INIT_INSIDE, INIT_OPAQUE, INIT_OUTLINE, INIT_RELATIVE, INIT_SCALE, INIT_VSTROKE, SHAPE_MAP,
+    F_ADD_DIFF, F_ATOP, F_BLEND_IF, F_CHANNELS, F_FIRST, F_GATE, F_HDR, F_KNOCKOUT, F_LAB, F_LAYER_SHAPE, F_NO_LAYER, F_OUTLINE, F_QUANT, F_REL, F_STROKE_OUT,
+    F_TEXT_GAMMA, F_VECTOR, INIT_ALPHA, INIT_COVER, INIT_INSIDE, INIT_OPAQUE, INIT_OUTLINE, INIT_RELATIVE, INIT_SCALE, INIT_VSTROKE, SHAPE_MAP,
 };
 pub use types::{Checkpoint, DocCtx, FxLayer, Kernel, MapRef, MaskUse, Pass, Role, SurfaceRef, TexUse, Unsupported};
 
@@ -64,7 +64,13 @@ pub fn plan(doc: &Document) -> Result<Plan<'_>, Unsupported> {
     // layers below can't change the result, so they cost no passes or uploads.
     let start = doc.layers.iter().rposition(|l| photocraft_compose::occludes_below(l, doc.mode)).unwrap_or(0);
     let root = p.stack_inner(doc.layers.get(start..).unwrap_or(&doc.layers), root, Some(start))?;
-    Ok(p.finish(root))
+    let plan = p.finish(root);
+    // Every slot becomes a chunk-sized texture before the first pass runs: a compact document
+    // of deeply nested isolated groups must not ask for hundreds of them.
+    if plan.slots > planner::MAX_PLAN_SLOTS {
+        return Err(Unsupported(format!("{} accumulator slots, more than the {} the GPU keeps (composited on the CPU)", plan.slots, planner::MAX_PLAN_SLOTS)));
+    }
+    Ok(plan)
 }
 
 #[cfg(test)]
