@@ -78,8 +78,8 @@ fn craft_i18n() -> String {
 const FORK_ROWS: &str = "fork-i18n.tsv";
 
 /// `entries` with each locale's `fork-i18n.tsv` rows appended to its PhotoCraft catalog, written to
-/// `OUT_DIR/i18n/<locale>.tsv` (only for a locale with fork rows). A row craft-i18n's catalog
-/// already has is left out, so craft-i18n's wins and nothing is defined twice; the build warns so
+/// `OUT_DIR/i18n/<locale>.tsv` (only for a locale with fork rows). A row craft-i18n's catalog or
+/// the locale's shared `common.tsv` already has is left out, so craft-i18n's wins and nothing is defined twice; the build warns so
 /// the fork row can be deleted. Fork rows for a locale that isn't embedded are a warning too.
 fn with_fork_rows(entries: Vec<Locale>) -> Vec<Locale> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(FORK_ROWS);
@@ -118,15 +118,35 @@ fn with_fork_rows(entries: Vec<Locale>) -> Vec<Locale> {
                 continue;
             }
         };
-        let have: std::collections::HashSet<(String, String)> =
-            catalog.lines().filter(|l| !l.starts_with('#')).filter_map(|l| key(l.strip_suffix('\r').unwrap_or(l))).collect();
+        // craft-i18n merges the app catalog over `common.tsv`, so a fork row would override a shared
+        // row too: both catalogs' keys count, each named in the warning.
+        let shared_text = shared.as_ref().map_or_else(String::new, |p| {
+            std::fs::read_to_string(p).unwrap_or_else(|e| {
+                println!("cargo::error=reading {}: {e}", p.display());
+                String::new()
+            })
+        });
+        let keys_of = |text: &str| -> std::collections::HashSet<(String, String)> {
+            text.lines().filter(|l| !l.starts_with('#')).filter_map(|l| key(l.strip_suffix('\r').unwrap_or(l))).collect()
+        };
+        let have = keys_of(&catalog);
+        let have_shared = keys_of(&shared_text);
         if !catalog.is_empty() && !catalog.ends_with('\n') {
             catalog.push('\n');
         }
         catalog.push_str("# Fork-only rows (ours): crates/ui-egui/fork-i18n.tsv\n");
         for row in rows {
-            if key(row).is_some_and(|k| have.contains(&k)) {
+            let Some(k) = key(row) else {
+                catalog.push_str(row);
+                catalog.push('\n');
+                continue;
+            };
+            if have.contains(&k) {
                 println!("cargo::warning={FORK_ROWS}: craft-i18n's {code}/{APP_CATALOG} already has {row:?}; delete the fork row");
+                continue;
+            }
+            if have_shared.contains(&k) {
+                println!("cargo::warning={FORK_ROWS}: craft-i18n's {code}/common.tsv already has {row:?}; delete the fork row");
                 continue;
             }
             catalog.push_str(row);
