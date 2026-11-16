@@ -1,0 +1,249 @@
+# Fork-only interface strings (ours, never offered upstream): rows for the UI strings the fork
+# added that storytold/craft-i18n has no row for. `build.rs` appends each locale's rows to the
+# craft-i18n `photocraft.tsv` it embeds, so lookups read them as PhotoCraft's own rows. A row that
+# craft-i18n already has is left out (craft-i18n's wins) with a build warning: delete it here once
+# the pinned `craft-i18n.rev` carries it. Without `CRAFT_I18N_DIR` nothing is embedded and the
+# interface is English, as before.
+#
+# Columns, separated by a TAB:  locale <TAB> context <TAB> source <TAB> translation. The last three
+# are a craft-i18n catalog row (its `docs/catalog-format.md`: escapes, `{name}` placeholders).
+# `i18n::tests::every_fork_row_resolves_in_every_complete_catalog` checks every source here.
+#
+# Recovered from the fork's own catalogs before the move to craft-i18n
+# (`origin/ours:crates/ui-egui/src/i18n/<code>.tsv`; `sr` there is `sr-latn` here).
+ja		Missing Fonts	不足しているフォント
+ja		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	このテキストは、インストールされていないフォントを使用しています: {fonts}。編集すると、テキストは代替フォントで描き直されます。続行しますか?
+ja		Text was drawn in a substitute font	テキストは代替フォントで描画されました
+ja		Choose an installed font for the text, or undo to bring back the text as it was.	テキストにインストール済みのフォントを選ぶか、取り消してテキストを元の状態に戻してください。
+ja		Fonts used in this document are not installed	このドキュメントで使用されているフォントがインストールされていません
+ja		Type layers look as they were saved until their text is edited.	テキストレイヤーは、テキストを編集するまで保存時の見た目のままです。
+ja		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	PhotoCraft (.pcraft) などすべてを保持できる形式を選ぶか、コピーを保存してください。
+zh-hans		Missing Fonts	缺失字体
+zh-hans		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	此文本使用了未安装的字体：{fonts}。编辑时将使用替代字体重新绘制文本。是否继续？
+zh-hans		Text was drawn in a substitute font	文本已使用替代字体绘制
+zh-hans		Choose an installed font for the text, or undo to bring back the text as it was.	请为文本选择已安装的字体，或撤销以恢复原来的文本。
+zh-hans		Fonts used in this document are not installed	此文档使用的字体未安装
+zh-hans		Type layers look as they were saved until their text is edited.	文字图层在编辑其文本之前保持存储时的外观。
+zh-hans		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	请选择能保留全部内容的格式，例如 PhotoCraft (.pcraft)，或存储副本。
+zh-hant		Missing Fonts	遺失的字體
+zh-hant		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	此文字使用了未安裝的字體：{fonts}。編輯時將以替代字體重新繪製文字。是否繼續？
+zh-hant		Text was drawn in a substitute font	文字已使用替代字體繪製
+zh-hant		Choose an installed font for the text, or undo to bring back the text as it was.	請為文字選擇已安裝的字體，或復原以恢復原來的文字。
+zh-hant		Fonts used in this document are not installed	此文件使用的字體未安裝
+zh-hant		Type layers look as they were saved until their text is edited.	文字圖層在編輯其文字之前會維持儲存時的外觀。
+zh-hant		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	請選擇能保留全部內容的格式，例如 PhotoCraft (.pcraft)，或儲存拷貝。
+es		Missing Fonts	Fuentes que faltan
+es		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Este texto usa fuentes que no están instaladas: {fonts}. Al editarlo, el texto se volverá a dibujar con una fuente sustituta. ¿Continuar?
+es		Text was drawn in a substitute font	El texto se dibujó con una fuente sustituta
+es		Choose an installed font for the text, or undo to bring back the text as it was.	Elija una fuente instalada para el texto, o deshaga para recuperar el texto como estaba.
+es		Fonts used in this document are not installed	Las fuentes usadas en este documento no están instaladas
+es		Type layers look as they were saved until their text is edited.	Las capas de texto se ven como se guardaron hasta que se edita su texto.
+es		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Elija un formato que lo conserve todo, como PhotoCraft (.pcraft), o guarde una copia.
+ru		Missing Fonts	Отсутствующие шрифты
+ru		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	В этом тексте используются шрифты, которые не установлены: {fonts}. При редактировании текст будет перерисован замещающим шрифтом. Продолжить?
+ru		Text was drawn in a substitute font	Текст отрисован замещающим шрифтом
+ru		Choose an installed font for the text, or undo to bring back the text as it was.	Выберите для текста установленный шрифт или отмените действие, чтобы вернуть текст в прежнем виде.
+ru		Fonts used in this document are not installed	Шрифты, используемые в этом документе, не установлены
+ru		Type layers look as they were saved until their text is edited.	Текстовые слои выглядят так, как были сохранены, пока их текст не отредактирован.
+ru		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Выберите формат, который сохранит все, например PhotoCraft (.pcraft), или сохраните копию.
+uk		Missing Fonts	Відсутні шрифти
+uk		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	У цьому тексті використано шрифти, які не встановлено: {fonts}. Під час редагування текст буде перемальовано замісним шрифтом. Продовжити?
+uk		Text was drawn in a substitute font	Текст намальовано замісним шрифтом
+uk		Choose an installed font for the text, or undo to bring back the text as it was.	Виберіть для тексту встановлений шрифт або скасуйте дію, щоб повернути текст у попередньому вигляді.
+uk		Fonts used in this document are not installed	Шрифти, використані в цьому документі, не встановлено
+uk		Type layers look as they were saved until their text is edited.	Текстові шари виглядають так, як їх було збережено, доки їхній текст не відредаговано.
+uk		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Виберіть формат, який збереже все, наприклад PhotoCraft (.pcraft), або збережіть копію.
+sr-latn		Missing Fonts	Fontovi koji nedostaju
+sr-latn		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Ovaj tekst koristi fontove koji nisu instalirani: {fonts}. Uređivanje će ponovo iscrtati tekst zamenskim fontom. Nastaviti?
+sr-latn		Text was drawn in a substitute font	Tekst je iscrtan zamenskim fontom
+sr-latn		Choose an installed font for the text, or undo to bring back the text as it was.	Izaberite instalirani font za tekst ili opozovite korak da biste vratili tekst kakav je bio.
+sr-latn		Fonts used in this document are not installed	Fontovi korišćeni u ovom dokumentu nisu instalirani
+sr-latn		Type layers look as they were saved until their text is edited.	Tekstualni slojevi izgledaju kao pri čuvanju dok se njihov tekst ne izmeni.
+sr-latn		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Izaberite format koji sve čuva, na primer PhotoCraft (.pcraft), ili sačuvajte kopiju.
+cs		Missing Fonts	Chybějící písma
+cs		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Tento text používá písma, která nejsou nainstalována: {fonts}. Při úpravě se text překreslí náhradním písmem. Pokračovat?
+cs		Text was drawn in a substitute font	Text byl vykreslen náhradním písmem
+cs		Choose an installed font for the text, or undo to bring back the text as it was.	Zvolte pro text nainstalované písmo, nebo krokem zpět vraťte text do původní podoby.
+cs		Fonts used in this document are not installed	Písma použitá v tomto dokumentu nejsou nainstalována
+cs		Type layers look as they were saved until their text is edited.	Textové vrstvy vypadají tak, jak byly uloženy, dokud se jejich text neupraví.
+cs		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Zvolte formát, který vše zachová, například PhotoCraft (.pcraft), nebo uložte kopii.
+fr		Missing Fonts	Polices manquantes
+fr		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Ce texte utilise des polices qui ne sont pas installées : {fonts}. Sa modification redessinera le texte avec une police de substitution. Continuer ?
+fr		Text was drawn in a substitute font	Le texte a été dessiné avec une police de substitution
+fr		Choose an installed font for the text, or undo to bring back the text as it was.	Choisissez une police installée pour le texte, ou annulez l’opération pour retrouver le texte tel qu’il était.
+fr		Fonts used in this document are not installed	Des polices utilisées dans ce document ne sont pas installées
+fr		Type layers look as they were saved until their text is edited.	Les calques de texte s’affichent tels qu’ils ont été enregistrés tant que leur texte n’est pas modifié.
+fr		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Choisissez un format qui conserve tout, comme PhotoCraft (.pcraft), ou enregistrez une copie.
+id		Missing Fonts	Font yang Hilang
+id		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Teks ini memakai font yang tidak terpasang: {fonts}. Mengeditnya akan menggambar ulang teks dengan font pengganti. Lanjutkan?
+id		Text was drawn in a substitute font	Teks digambar dengan font pengganti
+id		Choose an installed font for the text, or undo to bring back the text as it was.	Pilih font yang terpasang untuk teks ini, atau urungkan untuk mengembalikan teks seperti semula.
+id		Fonts used in this document are not installed	Font yang dipakai dalam dokumen ini tidak terpasang
+id		Type layers look as they were saved until their text is edited.	Lapisan teks tampil seperti saat disimpan sampai teksnya diedit.
+id		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Pilih format yang menyimpan semuanya, seperti PhotoCraft (.pcraft), atau simpan salinan.
+ko		Missing Fonts	누락된 글꼴
+ko		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	이 텍스트는 설치되지 않은 글꼴을 사용합니다: {fonts}. 편집하면 텍스트가 대체 글꼴로 다시 그려집니다. 계속하시겠습니까?
+ko		Text was drawn in a substitute font	텍스트가 대체 글꼴로 그려졌습니다
+ko		Choose an installed font for the text, or undo to bring back the text as it was.	텍스트에 설치된 글꼴을 선택하거나, 실행 취소하여 텍스트를 원래대로 되돌리십시오.
+ko		Fonts used in this document are not installed	이 문서에 사용된 글꼴이 설치되어 있지 않습니다
+ko		Type layers look as they were saved until their text is edited.	문자 레이어는 텍스트를 편집하기 전까지 저장된 모습 그대로 표시됩니다.
+ko		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	PhotoCraft(.pcraft)처럼 모든 내용을 유지하는 형식을 선택하거나 사본을 저장하세요.
+pl		Missing Fonts	Brakujące czcionki
+pl		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Ten tekst używa czcionek, które nie są zainstalowane: {fonts}. Edycja spowoduje ponowne narysowanie tekstu czcionką zastępczą. Kontynuować?
+pl		Text was drawn in a substitute font	Tekst został narysowany czcionką zastępczą
+pl		Choose an installed font for the text, or undo to bring back the text as it was.	Wybierz dla tekstu zainstalowaną czcionkę albo cofnij, aby przywrócić tekst w poprzedniej postaci.
+pl		Fonts used in this document are not installed	Czcionki użyte w tym dokumencie nie są zainstalowane
+pl		Type layers look as they were saved until their text is edited.	Warstwy tekstowe wyglądają tak, jak zostały zapisane, dopóki ich tekst nie zostanie edytowany.
+pl		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Wybierz format, który zachowa wszystko, na przykład PhotoCraft (.pcraft), lub zapisz kopię.
+de		Missing Fonts	Fehlende Schriften
+de		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Dieser Text verwendet Schriften, die nicht installiert sind: {fonts}. Beim Bearbeiten wird der Text in einer Ersatzschrift neu gezeichnet. Fortfahren?
+de		Text was drawn in a substitute font	Text wurde in einer Ersatzschrift gezeichnet
+de		Choose an installed font for the text, or undo to bring back the text as it was.	Wählen Sie eine installierte Schrift für den Text, oder machen Sie den Schritt rückgängig, um den Text wie zuvor wiederherzustellen.
+de		Fonts used in this document are not installed	In diesem Dokument verwendete Schriften sind nicht installiert
+de		Type layers look as they were saved until their text is edited.	Textebenen sehen wie gespeichert aus, bis ihr Text bearbeitet wird.
+de		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Wählen Sie ein Format, das alles erhält, etwa PhotoCraft (.pcraft), oder speichern Sie eine Kopie.
+pt-br		Missing Fonts	Fontes ausentes
+pt-br		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Este texto usa fontes que não estão instaladas: {fonts}. Ao editá-lo, o texto será redesenhado com uma fonte substituta. Continuar?
+pt-br		Text was drawn in a substitute font	O texto foi desenhado com uma fonte substituta
+pt-br		Choose an installed font for the text, or undo to bring back the text as it was.	Escolha uma fonte instalada para o texto ou desfaça para recuperar o texto como estava.
+pt-br		Fonts used in this document are not installed	As fontes usadas neste documento não estão instaladas
+pt-br		Type layers look as they were saved until their text is edited.	As camadas de texto aparecem como foram salvas até que o texto seja editado.
+pt-br		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Escolha um formato que mantenha tudo, como PhotoCraft (.pcraft), ou salve uma cópia.
+el		Missing Fonts	Γραμματοσειρές που λείπουν
+el		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Αυτό το κείμενο χρησιμοποιεί γραμματοσειρές που δεν είναι εγκατεστημένες: {fonts}. Με την επεξεργασία, το κείμενο θα σχεδιαστεί ξανά με γραμματοσειρά αντικατάστασης. Συνέχεια;
+el		Text was drawn in a substitute font	Το κείμενο σχεδιάστηκε με γραμματοσειρά αντικατάστασης
+el		Choose an installed font for the text, or undo to bring back the text as it was.	Επιλέξτε μια εγκατεστημένη γραμματοσειρά για το κείμενο ή κάντε αναίρεση για να επαναφέρετε το κείμενο όπως ήταν.
+el		Fonts used in this document are not installed	Γραμματοσειρές που χρησιμοποιούνται σε αυτό το έγγραφο δεν είναι εγκατεστημένες
+el		Type layers look as they were saved until their text is edited.	Τα επίπεδα κειμένου εμφανίζονται όπως αποθηκεύτηκαν μέχρι να γίνει επεξεργασία του κειμένου τους.
+el		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Επιλέξτε μια μορφή που τα κρατά όλα, όπως PhotoCraft (.pcraft), ή αποθηκεύστε ένα αντίγραφο.
+nl		Missing Fonts	Ontbrekende lettertypen
+nl		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Deze tekst gebruikt lettertypen die niet zijn geïnstalleerd: {fonts}. Bij bewerken wordt de tekst opnieuw getekend in een vervangend lettertype. Doorgaan?
+nl		Text was drawn in a substitute font	Tekst is getekend in een vervangend lettertype
+nl		Choose an installed font for the text, or undo to bring back the text as it was.	Kies een geïnstalleerd lettertype voor de tekst, of maak de stap ongedaan om de tekst terug te zetten zoals die was.
+nl		Fonts used in this document are not installed	Lettertypen die in dit document worden gebruikt, zijn niet geïnstalleerd
+nl		Type layers look as they were saved until their text is edited.	Tekstlagen zien eruit zoals ze zijn opgeslagen totdat hun tekst wordt bewerkt.
+nl		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Kies een indeling die alles bewaart, zoals PhotoCraft (.pcraft), of sla een kopie op.
+it		Missing Fonts	Font mancanti
+it		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Questo testo usa font non installati: {fonts}. Modificandolo, il testo verrà ridisegnato con un font sostitutivo. Continuare?
+it		Text was drawn in a substitute font	Il testo è stato disegnato con un font sostitutivo
+it		Choose an installed font for the text, or undo to bring back the text as it was.	Scegli un font installato per il testo, oppure annulla l’operazione per ripristinare il testo com’era.
+it		Fonts used in this document are not installed	I font usati in questo documento non sono installati
+it		Type layers look as they were saved until their text is edited.	I livelli di testo appaiono come sono stati salvati finché il loro testo non viene modificato.
+it		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Scegli un formato che conservi tutto, come PhotoCraft (.pcraft), oppure salva una copia.
+hu		Missing Fonts	Hiányzó betűtípusok
+hu		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Ez a szöveg nem telepített betűtípusokat használ: {fonts}. Szerkesztéskor a szöveg helyettesítő betűtípussal lesz újrarajzolva. Folytatja?
+hu		Text was drawn in a substitute font	A szöveg helyettesítő betűtípussal lett megrajzolva
+hu		Choose an installed font for the text, or undo to bring back the text as it was.	Válasszon telepített betűtípust a szöveghez, vagy vonja vissza a lépést, hogy a szöveg visszaálljon az eredeti állapotára.
+hu		Fonts used in this document are not installed	A dokumentumban használt betűtípusok nincsenek telepítve
+hu		Type layers look as they were saved until their text is edited.	A szövegrétegek a mentett állapotukban látszanak, amíg a szövegüket nem szerkesztik.
+hu		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Válassz olyan formátumot, amely mindent megőriz, például PhotoCraft (.pcraft), vagy ments másolatot.
+tr		Missing Fonts	Eksik Yazı Tipleri
+tr		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Bu metin yüklü olmayan yazı tipleri kullanıyor: {fonts}. Düzenlendiğinde metin yedek bir yazı tipiyle yeniden çizilir. Devam edilsin mi?
+tr		Text was drawn in a substitute font	Metin yedek bir yazı tipiyle çizildi
+tr		Choose an installed font for the text, or undo to bring back the text as it was.	Metin için yüklü bir yazı tipi seçin ya da metni eski haline döndürmek için geri alın.
+tr		Fonts used in this document are not installed	Bu belgede kullanılan yazı tipleri yüklü değil
+tr		Type layers look as they were saved until their text is edited.	Metin katmanları, metinleri düzenlenene kadar kaydedildikleri gibi görünür.
+tr		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	PhotoCraft (.pcraft) gibi her şeyi koruyan bir biçim seçin ya da bir kopyasını kaydedin.
+vi		Missing Fonts	Phông chữ bị thiếu
+vi		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Văn bản này dùng phông chữ chưa được cài đặt: {fonts}. Khi chỉnh sửa, văn bản sẽ được vẽ lại bằng phông chữ thay thế. Tiếp tục?
+vi		Text was drawn in a substitute font	Văn bản đã được vẽ bằng phông chữ thay thế
+vi		Choose an installed font for the text, or undo to bring back the text as it was.	Hãy chọn một phông chữ đã cài đặt cho văn bản, hoặc hoàn tác để khôi phục văn bản như cũ.
+vi		Fonts used in this document are not installed	Phông chữ dùng trong tài liệu này chưa được cài đặt
+vi		Type layers look as they were saved until their text is edited.	Các lớp chữ hiển thị như khi được lưu cho đến khi văn bản của chúng được chỉnh sửa.
+vi		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Hãy chọn một định dạng giữ được mọi thứ, như PhotoCraft (.pcraft), hoặc lưu bản sao.
+ar		Missing Fonts	الخطوط المفقودة
+ar		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	يستخدم هذا النص خطوطًا غير مثبّتة: {fonts}. سيؤدي تحريره إلى إعادة رسم النص بخط بديل. هل تريد المتابعة؟
+ar		Text was drawn in a substitute font	تم رسم النص بخط بديل
+ar		Choose an installed font for the text, or undo to bring back the text as it was.	اختر خطًا مثبّتًا للنص، أو تراجع لاستعادة النص كما كان.
+ar		Fonts used in this document are not installed	هناك خطوط مستخدمة في هذا المستند غير مثبّتة
+ar		Type layers look as they were saved until their text is edited.	تظهر طبقات النص كما تم حفظها إلى أن يتم تحرير نصها.
+sv		Missing Fonts	Saknade teckensnitt
+sv		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Texten använder teckensnitt som inte är installerade: {fonts}. Om du redigerar den ritas texten om med ett ersättningsteckensnitt. Fortsätta?
+sv		Text was drawn in a substitute font	Texten ritades med ett ersättningsteckensnitt
+sv		Choose an installed font for the text, or undo to bring back the text as it was.	Välj ett installerat teckensnitt för texten, eller ångra för att få tillbaka texten som den var.
+sv		Fonts used in this document are not installed	Teckensnitt som används i dokumentet är inte installerade
+sv		Type layers look as they were saved until their text is edited.	Textlager visas som de sparades tills texten redigeras.
+fi		Missing Fonts	Puuttuvat fontit
+fi		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Teksti käyttää fontteja, joita ei ole asennettu: {fonts}. Muokkaaminen piirtää tekstin uudelleen korvaavalla fontilla. Jatketaanko?
+fi		Text was drawn in a substitute font	Teksti piirrettiin korvaavalla fontilla
+fi		Choose an installed font for the text, or undo to bring back the text as it was.	Valitse tekstille asennettu fontti tai kumoa palauttaaksesi tekstin ennalleen.
+fi		Fonts used in this document are not installed	Asiakirjassa käytettyjä fontteja ei ole asennettu
+fi		Type layers look as they were saved until their text is edited.	Tekstitasot näkyvät tallennetussa muodossaan, kunnes niiden tekstiä muokataan.
+da		Missing Fonts	Manglende skrifttyper
+da		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Teksten bruger skrifttyper, der ikke er installeret: {fonts}. Hvis du redigerer den, tegnes teksten igen med en erstatningsskrifttype. Fortsæt?
+da		Text was drawn in a substitute font	Teksten blev tegnet med en erstatningsskrifttype
+da		Choose an installed font for the text, or undo to bring back the text as it was.	Vælg en installeret skrifttype til teksten, eller fortryd for at få teksten tilbage, som den var.
+da		Fonts used in this document are not installed	Skrifttyper, der bruges i dokumentet, er ikke installeret
+da		Type layers look as they were saved until their text is edited.	Tekstlag vises, som de blev gemt, indtil teksten redigeres.
+nb		Missing Fonts	Manglende skrifter
+nb		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Teksten bruker skrifter som ikke er installert: {fonts}. Hvis du redigerer den, tegnes teksten på nytt med en erstatningsskrift. Fortsette?
+nb		Text was drawn in a substitute font	Teksten ble tegnet med en erstatningsskrift
+nb		Choose an installed font for the text, or undo to bring back the text as it was.	Velg en installert skrift for teksten, eller angre for å få tilbake teksten slik den var.
+nb		Fonts used in this document are not installed	Skrifter som brukes i dokumentet, er ikke installert
+nb		Type layers look as they were saved until their text is edited.	Tekstlag vises slik de ble lagret til teksten redigeres.
+
+# Written for this overlay: the fork's catalogs had no row for these languages (bs, az, th, he, ur,
+# ro, ta, ka) or for the `.pcraft` save line (ar, sv, fi, da, nb). Each follows the terms of the
+# same locale's craft-i18n rows ("Resolve Missing Fonts…", "Undo", "Type Layer", and the
+# "such as Photoshop (PSD), or save a copy." twin). Not yet reviewed by a native speaker.
+bs		Missing Fonts	Nedostajući fontovi
+bs		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Ovaj tekst koristi fontove koji nisu instalirani: {fonts}. Uređivanjem će se tekst ponovo iscrtati zamjenskim fontom. Nastaviti?
+bs		Text was drawn in a substitute font	Tekst je iscrtan zamjenskim fontom
+bs		Choose an installed font for the text, or undo to bring back the text as it was.	Odaberite instalirani font za tekst ili poništite da vratite tekst kakav je bio.
+bs		Fonts used in this document are not installed	Fontovi korišteni u ovom dokumentu nisu instalirani
+bs		Type layers look as they were saved until their text is edited.	Tekstualni slojevi izgledaju kao kada su sačuvani dok se njihov tekst ne uredi.
+bs		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Odaberite format koji to zadržava, npr. PhotoCraft (.pcraft), ili sačuvajte kopiju.
+az		Missing Fonts	Çatışmayan şriftlər
+az		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Bu mətn quraşdırılmamış şriftlərdən istifadə edir: {fonts}. Onu redaktə etdikdə mətn əvəzedici şriftlə yenidən çəkiləcək. Davam edilsin?
+az		Text was drawn in a substitute font	Mətn əvəzedici şriftlə çəkildi
+az		Choose an installed font for the text, or undo to bring back the text as it was.	Mətn üçün quraşdırılmış şrift seçin və ya mətni əvvəlki halına qaytarmaq üçün geri alın.
+az		Fonts used in this document are not installed	Bu sənəddə istifadə olunan şriftlər quraşdırılmayıb
+az		Type layers look as they were saved until their text is edited.	Mətn qatları mətnləri redaktə olunana qədər saxlandıqları kimi görünür.
+az		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	PhotoCraft (.pcraft) kimi onu saxlayan format seçin və ya nüsxəsini saxlayın.
+th		Missing Fonts	แบบอักษรที่หายไป
+th		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	ข้อความนี้ใช้แบบอักษรที่ไม่ได้ติดตั้ง: {fonts} การแก้ไขจะวาดข้อความใหม่ด้วยแบบอักษรทดแทน ดำเนินการต่อหรือไม่
+th		Text was drawn in a substitute font	ข้อความถูกวาดด้วยแบบอักษรทดแทน
+th		Choose an installed font for the text, or undo to bring back the text as it was.	เลือกแบบอักษรที่ติดตั้งไว้สำหรับข้อความ หรือเลิกทำเพื่อนำข้อความกลับมาเหมือนเดิม
+th		Fonts used in this document are not installed	แบบอักษรที่ใช้ในเอกสารนี้ไม่ได้ติดตั้งไว้
+th		Type layers look as they were saved until their text is edited.	เลเยอร์ตัวอักษรจะแสดงตามที่บันทึกไว้จนกว่าจะแก้ไขข้อความ
+th		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	เลือกรูปแบบที่จะเก็บไว้ เช่น PhotoCraft (.pcraft) หรือบันทึกสำเนา
+ar		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	اختر تنسيقًا يحتفظ بذلك، مثل PhotoCraft (.pcraft)، أو احفظ نسخة.
+sv		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Välj ett format som behåller det, till exempel PhotoCraft (.pcraft), eller spara en kopia.
+fi		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Valitse muoto, joka säilyttää kaiken, kuten PhotoCraft (.pcraft), tai tallenna kopio.
+da		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Vælg et format, der bevarer det, f.eks. PhotoCraft (.pcraft), eller gem en kopi.
+nb		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Velg et format som bevarer det, for eksempel PhotoCraft (.pcraft), eller lagre en kopi.
+he		Missing Fonts	גופנים חסרים
+he		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	טקסט זה משתמש בגופנים שאינם מותקנים: {fonts}. עריכתו תצייר מחדש את הטקסט בגופן חלופי. להמשיך?
+he		Text was drawn in a substitute font	הטקסט צויר בגופן חלופי
+he		Choose an installed font for the text, or undo to bring back the text as it was.	בחר גופן מותקן עבור הטקסט, או בטל את הפעולה כדי להחזיר את הטקסט למצבו הקודם.
+he		Fonts used in this document are not installed	גופנים שבשימוש במסמך זה אינם מותקנים
+he		Type layers look as they were saved until their text is edited.	שכבות טקסט נראות כפי שנשמרו עד שהטקסט שלהן נערך.
+he		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	בחר תבנית ששומרת זאת, כגון PhotoCraft ‏(.pcraft), או שמור עותק.
+ur		Missing Fonts	غائب فونٹس
+ur		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	یہ متن ایسے فونٹس استعمال کرتا ہے جو انسٹال نہیں ہیں: {fonts}۔ اس میں ترمیم کرنے سے متن متبادل فونٹ میں دوبارہ ڈرائنگ ہو گا۔ جاری رکھیں؟
+ur		Text was drawn in a substitute font	متن متبادل فونٹ میں ڈرائنگ کیا گیا
+ur		Choose an installed font for the text, or undo to bring back the text as it was.	متن کے لیے کوئی انسٹال شدہ فونٹ چنیں، یا متن کو پہلے جیسا واپس لانے کے لیے کالعدم کریں۔
+ur		Fonts used in this document are not installed	اس دستاویز میں استعمال ہونے والے فونٹس انسٹال نہیں ہیں
+ur		Type layers look as they were saved until their text is edited.	متن تہیں تب تک ویسی ہی دکھتی ہیں جیسی محفوظ کی گئی تھیں جب تک ان کے متن میں ترمیم نہ کی جائے۔
+ur		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	کوئی ایسا فارمیٹ چنیں جو اسے محفوظ رکھے، جیسے PhotoCraft (.pcraft)، یا ایک نقل محفوظ کریں۔
+ro		Missing Fonts	Fonturi lipsă
+ro		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	Acest text folosește fonturi care nu sunt instalate: {fonts}. Editarea lui va redesena textul cu un font înlocuitor. Continuați?
+ro		Text was drawn in a substitute font	Textul a fost desenat cu un font înlocuitor
+ro		Choose an installed font for the text, or undo to bring back the text as it was.	Alegeți un font instalat pentru text sau anulați pentru a readuce textul cum era.
+ro		Fonts used in this document are not installed	Fonturile folosite în acest document nu sunt instalate
+ro		Type layers look as they were saved until their text is edited.	Straturile de text arată așa cum au fost salvate până când textul lor este editat.
+ro		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	Alegeți un format care îl păstrează, precum PhotoCraft (.pcraft), sau salvați o copie.
+ta		Missing Fonts	காணாமல்போன எழுத்துருக்கள்
+ta		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	இந்த உரை நிறுவப்படாத எழுத்துருக்களைப் பயன்படுத்துகிறது: {fonts}. இதைத் திருத்தினால் உரை மாற்று எழுத்துருவில் மறுவரைவு செய்யப்படும். தொடரவா?
+ta		Text was drawn in a substitute font	உரை மாற்று எழுத்துருவில் வரையப்பட்டது
+ta		Choose an installed font for the text, or undo to bring back the text as it was.	உரைக்கு நிறுவப்பட்ட எழுத்துருவைத் தேர்ந்தெடுக்கவும், அல்லது உரையை முன்பிருந்தபடி மீட்டெடுக்கச் செயல்தவிர்க்கவும்.
+ta		Fonts used in this document are not installed	இந்த ஆவணத்தில் பயன்படுத்தப்பட்ட எழுத்துருக்கள் நிறுவப்படவில்லை
+ta		Type layers look as they were saved until their text is edited.	உரை அடுக்குகள் அவற்றின் உரை திருத்தப்படும் வரை சேமிக்கப்பட்டபடியே தோன்றும்.
+ta		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	அனைத்தையும் தக்கவைக்கும் PhotoCraft (.pcraft) போன்ற வடிவமைப்பைத் தேர்ந்தெடுக்கவும், அல்லது நகலைச் சேமிக்கவும்.
+ka		Missing Fonts	ნაკლული შრიფტები
+ka		This text uses fonts that are not installed: {fonts}. Editing it will redraw the text in a substitute font. Continue?	ეს ტექსტი იყენებს შრიფტებს, რომლებიც დაყენებული არ არის: {fonts}. მისი რედაქტირება ტექსტს შემცვლელი შრიფტით გადახატავს. გავაგრძელოთ?
+ka		Text was drawn in a substitute font	ტექსტი შემცვლელი შრიფტით დაიხატა
+ka		Choose an installed font for the text, or undo to bring back the text as it was.	აირჩიეთ ტექსტისთვის დაყენებული შრიფტი, ან დააბრუნეთ, რომ ტექსტი წინანდელ მდგომარეობაში აღდგეს.
+ka		Fonts used in this document are not installed	ამ დოკუმენტში გამოყენებული შრიფტები დაყენებული არ არის
+ka		Type layers look as they were saved until their text is edited.	ტექსტური შრეები შენახვისდროინდელ სახეს ინარჩუნებს, სანამ მათ ტექსტს არ დაარედაქტირებთ.
+ka		Choose a format that keeps it, such as PhotoCraft (.pcraft), or save a copy.	აირჩიეთ ფორმატი, რომელიც მას შეინარჩუნებს, მაგალითად PhotoCraft (.pcraft), ან შეინახეთ ასლი.

@@ -18,6 +18,12 @@
 //! show here once `craft-i18n.rev` moves to a commit that has them. A feature PR here adds the
 //! English only; `cargo xtask i18n-report` lists what each language lacks.
 //!
+//! # Fork-only strings (ours)
+//! The few strings only this fork has, which craft-i18n doesn't carry, are rows of
+//! `crates/ui-egui/fork-i18n.tsv`. `build.rs` appends them to each locale's embedded
+//! `photocraft.tsv`, so they read as PhotoCraft's own rows; a row craft-i18n gains later wins and
+//! the build warns to delete the fork's copy.
+//!
 //! # Adding a language
 //! 1. craft-i18n gets `locales/<code>/photocraft.tsv` with its `@id language.name` row.
 //! 2. Add one row to [`LANGUAGES`].

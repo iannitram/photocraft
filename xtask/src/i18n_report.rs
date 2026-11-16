@@ -32,7 +32,8 @@ pub fn run(root: &Path) -> Result<(), String> {
     if english_keys.is_empty() {
         return Err("no source-derived English UI translation keys were found".into());
     }
-    let embedded = embedded(&PathBuf::from(dir).join("locales"))?;
+    let fork = fs::read_to_string(root.join(FORK_ROWS)).map_err(|e| format!("{FORK_ROWS}: {e}"))?;
+    let embedded = embedded(&PathBuf::from(dir).join("locales"), &fork)?;
     let codes: Vec<&str> = languages.iter().map(|l| l.code.as_str()).collect();
     let (i18n, mut problems) = craft_i18n::I18n::new(embedded, &codes);
     problems.extend(i18n.check_all());
@@ -65,8 +66,9 @@ fn translation<'a>(i18n: &'a craft_i18n::I18n, lang: craft_i18n::Lang, key: &'a 
 }
 
 /// The catalogs of every locale under `dir` with a `photocraft.tsv`, as the app's build.rs embeds
-/// them: (locale, shared `common.tsv` or "", `photocraft.tsv`). Read once per run, so leaked.
-fn embedded(dir: &Path) -> Result<&'static craft_i18n::Embedded, String> {
+/// them: (locale, shared `common.tsv` or "", `photocraft.tsv` with the locale's `fork` rows after
+/// it). Read once per run, so leaked.
+fn embedded(dir: &Path, fork: &str) -> Result<&'static craft_i18n::Embedded, String> {
     let list = fs::read_dir(dir).map_err(|e| format!("{} is not a craft-i18n checkout ({e})", dir.display()))?;
     let mut out: Vec<(&'static str, &'static str, &'static str)> = Vec::new();
     for entry in list {
@@ -75,7 +77,9 @@ fn embedded(dir: &Path) -> Result<&'static craft_i18n::Embedded, String> {
         let Some(code) = path.file_name().and_then(|n| n.to_str()).map(str::to_string) else { continue };
         // A locale without the file is skipped (or reads without a shared catalog); a file that is
         // there but can't be read is an error, not a gap in the coverage.
-        let Some(app) = read_optional(&path.join("photocraft.tsv"))? else { continue };
+        let Some(mut app) = read_optional(&path.join("photocraft.tsv"))? else { continue };
+        app.push('\n');
+        app.extend(fork_rows(fork, &code).map(|row| format!("{row}\n")));
         let shared = read_optional(&path.join("common.tsv"))?.unwrap_or_default();
         out.push((Box::leak(code.into_boxed_str()), Box::leak(shared.into_boxed_str()), Box::leak(app.into_boxed_str())));
     }
@@ -84,6 +88,15 @@ fn embedded(dir: &Path) -> Result<&'static craft_i18n::Embedded, String> {
     }
     out.sort();
     Ok(Box::leak(out.into_boxed_slice()))
+}
+
+/// The fork's own rows (ours, `crates/ui-egui/fork-i18n.tsv`): `locale<TAB>` then a catalog row.
+const FORK_ROWS: &str = "crates/ui-egui/fork-i18n.tsv";
+
+/// The catalog rows `fork` has for the locale `code`, as `build.rs` appends them. A row craft-i18n
+/// also has is reported as defined twice, craft-i18n's kept (build.rs leaves it out).
+fn fork_rows<'a>(fork: &'a str, code: &'a str) -> impl Iterator<Item = &'a str> {
+    fork.lines().filter(|l| !l.starts_with('#')).filter_map(move |l| l.strip_prefix(code)?.strip_prefix('\t'))
 }
 
 /// The file's text; `None` when there is no such file, an error naming it when it can't be read.

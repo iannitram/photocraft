@@ -523,3 +523,34 @@ fn raw_develop_labels_are_translated_in_every_shipped_catalog() {
         }
     }
 }
+
+/// Every string of the fork's own overlay (`fork-i18n.tsv`, ours) resolves to a translation in
+/// every complete catalog, and each row names a registered language.
+#[test]
+fn every_fork_row_resolves_in_every_complete_catalog() {
+    let rows: Vec<(&str, &str, &str)> = include_str!("../../fork-i18n.tsv")
+        .lines()
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .map(|l| {
+            let mut columns = l.split('\t');
+            let mut next = || columns.next().unwrap_or_else(|| panic!("fork-i18n.tsv: 4 columns in {l:?}"));
+            (next(), next(), next())
+        })
+        .collect();
+    assert!(!rows.is_empty(), "fork-i18n.tsv has rows");
+    for (code, ..) in &rows {
+        assert!(LANGUAGES.iter().any(|l| l.code == *code), "fork-i18n.tsv: {code} is a registered language");
+    }
+    if !needs_catalogs() {
+        return;
+    }
+    let mut keys: Vec<(&str, &str)> = rows.iter().map(|(_, context, source)| (*context, *source)).collect();
+    keys.sort_unstable();
+    keys.dedup();
+    for lang in Lang::all().filter(|l| l.complete_menus()) {
+        for (context, source) in &keys {
+            let translated = lang.i18n().get(lang.lang, context, source);
+            assert!(translated.is_some_and(|t| t != *source), "{}: {context:?} {source:?} has no translation", lang.code());
+        }
+    }
+}

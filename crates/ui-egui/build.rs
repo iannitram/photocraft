@@ -13,6 +13,8 @@
 //!   catalog) entry per locale that has a `photocraft.tsv`, embedded raw. Unset, or not a checkout
 //!   (a warning), it is empty and the interface is English only; with `CRAFT_I18N_REQUIRED=1` (CI
 //!   and releases) that is an error instead. Recipe: craft-i18n's `docs/integration.md`.
+//! - `fork-i18n.tsv` (ours, never offered upstream): the fork's own rows, appended to each
+//!   locale's PhotoCraft catalog in `OUT_DIR/i18n/` (`with_fork_rows`).
 
 use std::fmt::Write as _;
 
@@ -60,6 +62,7 @@ fn craft_i18n() -> String {
             Vec::new()
         }
     };
+    let entries = with_fork_rows(entries);
     let mut o = String::from("/// (locale, shared catalog, PhotoCraft's catalog), one entry per locale; `\"\"` for a missing file.\n");
     o.push_str("pub static CRAFT_I18N: &craft_i18n::Embedded = &[\n");
     for (code, shared, app) in entries {
@@ -69,6 +72,78 @@ fn craft_i18n() -> String {
     }
     o.push_str("];\n");
     o
+}
+
+/// The fork's own rows (ours): `locale<TAB>context<TAB>source<TAB>translation`.
+const FORK_ROWS: &str = "fork-i18n.tsv";
+
+/// `entries` with each locale's `fork-i18n.tsv` rows appended to its PhotoCraft catalog, written to
+/// `OUT_DIR/i18n/<locale>.tsv` (only for a locale with fork rows). A row craft-i18n's catalog
+/// already has is left out, so craft-i18n's wins and nothing is defined twice; the build warns so
+/// the fork row can be deleted. Fork rows for a locale that isn't embedded are a warning too.
+fn with_fork_rows(entries: Vec<Locale>) -> Vec<Locale> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(FORK_ROWS);
+    println!("cargo::rerun-if-changed={}", path.display());
+    if entries.is_empty() {
+        return entries;
+    }
+    let Some(text) = read(&path, "the fork's own strings show in English", |t| Ok(t.to_string())) else { return entries };
+    let mut fork: std::collections::BTreeMap<&str, Vec<&str>> = std::collections::BTreeMap::new();
+    for line in text.lines().filter(|l| !l.is_empty() && !l.starts_with('#')) {
+        match line.split_once('\t') {
+            Some((code, row)) => fork.entry(code).or_default().push(row),
+            None => println!("cargo::warning={FORK_ROWS}: {line:?} has no locale column; skipped"),
+        }
+    }
+    let dir = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap_or_default()).join("i18n");
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        println!("cargo::error=creating {}: {e}", dir.display());
+        return entries;
+    }
+    let key = |row: &str| -> Option<(String, String)> {
+        let mut columns = row.split('\t');
+        Some((columns.next()?.to_string(), columns.next()?.to_string()))
+    };
+    let mut out = Vec::new();
+    for (code, shared, app) in entries {
+        let Some(rows) = fork.remove(code.as_str()) else {
+            out.push((code, shared, app));
+            continue;
+        };
+        let mut catalog = match std::fs::read_to_string(&app) {
+            Ok(t) => t,
+            Err(e) => {
+                println!("cargo::error=reading {}: {e}", app.display());
+                out.push((code, shared, app));
+                continue;
+            }
+        };
+        let have: std::collections::HashSet<(String, String)> =
+            catalog.lines().filter(|l| !l.starts_with('#')).filter_map(|l| key(l.strip_suffix('\r').unwrap_or(l))).collect();
+        if !catalog.is_empty() && !catalog.ends_with('\n') {
+            catalog.push('\n');
+        }
+        catalog.push_str("# Fork-only rows (ours): crates/ui-egui/fork-i18n.tsv\n");
+        for row in rows {
+            if key(row).is_some_and(|k| have.contains(&k)) {
+                println!("cargo::warning={FORK_ROWS}: craft-i18n's {code}/{APP_CATALOG} already has {row:?}; delete the fork row");
+                continue;
+            }
+            catalog.push_str(row);
+            catalog.push('\n');
+        }
+        let merged = dir.join(format!("{code}.tsv"));
+        if let Err(e) = std::fs::write(&merged, catalog) {
+            println!("cargo::error=writing {}: {e}", merged.display());
+            out.push((code, shared, app));
+            continue;
+        }
+        out.push((code, shared, merged));
+    }
+    for code in fork.keys() {
+        println!("cargo::warning={FORK_ROWS}: rows for {code}, which has no embedded {APP_CATALOG}; skipped");
+    }
+    out
 }
 
 /// One embedded locale: its code, its `common.tsv` if it has one, and its PhotoCraft catalog.
