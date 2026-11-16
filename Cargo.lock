@@ -5554,7 +5554,6 @@ dependencies = [
  "photocraft-raster",
  "photocraft-tablet",
  "photocraft-ui-egui",
- "photocraft-wayland-drop",
  "plist",
  "rfd",
  "ron",
@@ -6011,15 +6010,6 @@ dependencies = [
  "photocraft-geom",
  "photocraft-raster",
  "rayon",
-]
-
-[[package]]
-name = "photocraft-wayland-drop"
-version = "0.23.1"
-dependencies = [
- "rustix 1.1.5",
- "wayland-backend",
- "wayland-client",
 ]
 
 [[package]]

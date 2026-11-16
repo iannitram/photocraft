@@ -16,7 +16,7 @@ Workspace members: `crates/*`, `apps/*`, `xtask` (29 crates, 4 apps; the default
 | `crates/geom`, `cms`, `color`, `raster` | L0 foundation: geometry; pure-Rust ICC v2/v4 colour management; pixel formats and blend math; sparse copy-on-write tiled surfaces. |
 | `crates/psd`, `codecs` | L0 standalone format crates: lossless PSD/PSB reader-writer; flat raster codecs. No workspace deps. |
 | `crates/raw`, `heif`, `affinity` | Camera raw decode and develop (DNG, CR2 and others); optional HEIF/HEIC decoder; Affinity document reader. |
-| `crates/tablet` | Pen pressure/tilt input (AppKit, X11 XInput2, Windows barrel button). Isolated `unsafe` (`deny`, not the workspace's `forbid`); `wayland-drop` is the other crate that opts in. |
+| `crates/tablet` | Pen pressure/tilt input (AppKit, X11 XInput2, Windows barrel button). Isolated `unsafe` (`deny`, not the workspace's `forbid`). |
 | `crates/doc` | L1 document model: layers, masks, adjustments, effects, smart objects. Pure data. |
 | `crates/ops`, `paint`, `algo`, `text`, `vector` | L2: undo history; brush engine; tile-aware CPU filters and selection (`crates/algo/src/segment/`); font and text layout (parley); paths and shapes. |
 | `crates/compose`, `gpu`, `format` | L3: CPU reference compositor (the oracle); wgpu compositor; native `.pcraft` bundle (zstd tiles). |
@@ -27,7 +27,6 @@ Workspace members: `crates/*`, `apps/*`, `xtask` (29 crates, 4 apps; the default
 | `crates/ipp` | Small IPP client for CUPS printing. |
 | `crates/testkit` | Test helpers. |
 | `crates/craft-log`, `craft-stage` | Self-logging (log files, crash and stall reports) and named long-operation stages. Ours, not upstream; `craft-stage` is a standalone crate, `craft-log` sits at L5. |
-| `crates/wayland-drop` | Files dropped on a winit window under Wayland (a prototype). Ours; `unsafe_code` is `deny` with the FFI isolated here, as in `tablet`. |
 | `apps/photocraft` | Desktop app (eframe/wgpu) with a TCP control server. |
 | `apps/photocraft-cli` | Headless CLI: convert, info, run, batch, commands, mcp. |
 | `apps/photocraft-web`, `photocraft-web-boot` | Browser build (trunk, wasm-bindgen, WebGPU with WebGL2 fallback) and its compressed-parts bootstrap. |
@@ -64,7 +63,7 @@ flowchart TD
 | Area | Where |
 |---|---|
 | Self-logging | New `crates/craft-log` and `craft-stage`; wiring in `apps/photocraft/src/self_logging.rs`, `apps/photocraft-cli/src/selflog.rs` (also builds the `--version` text), `crates/ui-egui/src/self_logging.rs`; tests in `apps/*/tests/selflog*.rs` and `apps/photocraft-cli/tests/version.rs` |
-| Linux / Wayland | `crates/wayland-drop`, `apps/photocraft/src/wayland_drop.rs`, `apps/photocraft/src/wayland_outputs.rs` (gamescope guard, sideways panels, maximize a tall window) |
+| Linux / Wayland | `apps/photocraft/src/wayland_outputs.rs` (gamescope guard, sideways panels, maximize a tall window) |
 | `crates/ui-egui` | Missing-font prompt (`src/missing_font_prompt.rs` and `missing_font_prompt_tests.rs`), snap and smart-guide behaviour, Camera Raw window sizing, open-file handling, and translations in `src/i18n/` (zh-hans: 361 changed rows; Serbian and Hungarian strings; a few rows in every language) |
 | `crates/algo` | Select Subject edge handling in `src/segment/subject.rs`; Select and Mask feather in `src/matting.rs`. Our GrabCut and Boykov-Kolmogorov cancel hook was dropped in the sync: upstream's solver replaced it. |
 | `crates/engine`, `compose`, `io`, `psd`, `doc`, `gpu` | Replace Contents size note (`crates/engine/src/cmd/smart_cmds.rs`), layer-style `edit` (`crates/engine/src/layer_style.rs`), stroke effect opacity and glow fixes (`crates/compose/src/effects.rs`, `crates/gpu/src/compose.wgsl`), a clipped adjustment taking Fill as coverage on the CMYK ink path (`crates/compose/src/cmyk.rs`, with the matching GPU plan in `crates/gpu/src/batch.rs` and `prefix.rs`), PSD/PSB save refusing a lossy timeline save, PSD export fixes and tests (`crates/io/src/psd_export.rs`, `crates/io/tests/it/psd_export_*.rs`, `crates/psd/src/resources.rs`) |
@@ -89,7 +88,7 @@ CI (`.github/workflows/ci.yml`): `platforms` selects legs; `gate` (shared workfl
 ## Mac / PC / Linux
 
 - All three desktops are targets, plus FreeBSD and the browser. Linux build needs libxkbcommon, wayland, x11, xrandr, xi, GL and GTK3 dev packages.
-- Platform-specific code: `crates/tablet` (AppKit, X11, Windows), `crates/wayland-drop` and `apps/photocraft/src/wayland_*.rs` (Linux only), `crates/ipp` (CUPS printing), macOS shell code in `apps/photocraft/src/mac_menu.rs`, `mac_window.rs` and `apple_events.rs`, `packaging/{macos,windows,linux,freebsd,web}`.
+- Platform-specific code: `crates/tablet` (AppKit, X11, Windows), `apps/photocraft/src/wayland_*.rs` (Linux only), `crates/ipp` (CUPS printing), macOS shell code in `apps/photocraft/src/mac_menu.rs`, `mac_window.rs` and `apple_events.rs`, `packaging/{macos,windows,linux,freebsd,web}`.
 - CI coverage (R04): Linux on every pull request, Windows on platform-sensitive changes or `full-ci`, FreeBSD and Windows on ARM64 on a schedule, a Nix check, wasm32 built. There is no macOS job in `ci.yml` (its own comment: macOS is tested only by `release.yml`, which calls a shared workflow on pushes to a `release` branch; our fork has no `release` branch). A change that touches macOS-only code (tablet, `mac_*.rs`, packaging) is therefore not tested by CI here and needs a run on a Mac.
 
 ## Open-source pieces

@@ -250,8 +250,6 @@ impl PhotocraftApp {
 
 impl eframe::App for PhotocraftApp {
     fn on_exit(&mut self) {
-        // The Wayland drop listener uses winit's connection: it stops here, before winit closes it.
-        self.services.wayland_drops = None;
         if let Err(err) = tool_memory::save_on_exit(self) {
             log::warn!("Preferences: could not save the final tool state: {err}");
         }

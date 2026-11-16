@@ -133,13 +133,6 @@ impl PhotocraftApp {
             // the keyboard, as Photoshop does, instead of staying behind the source (#5687).
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         }
-        // Native Wayland: winit delivers no drops, the listener does; same routing as above.
-        let wayland = self.services.wayland_drops.as_mut().map(|poll| poll()).unwrap_or_default();
-        for (paths, at) in wayland {
-            let files = paths.into_iter().map(|p| std::sync::Arc::new(crate::file_open::PathDrop(p)) as egui::DroppedFileHandle).collect();
-            self.open_dropped(ctx, files, at);
-            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-        }
         self.place_next_dropped(ctx);
         // The control transport wakes the UI on arrival (ctx.request_repaint); only poll while a
         // screenshot is pending. (Polling every 50 ms here made idle apps render at 20 fps.)
