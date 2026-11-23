@@ -11,3 +11,5 @@ Upstream owns AGENTS.md, ROADMAP.md, docs/roadmap.md and docs/gaps.md: read them
 7. **A failed job** gets a comment on the issue and the issue moves up one size.
 8. **Measure Photoshop; do not guess it** (#37). No private PSDs, names or paths in code, commits, tests or PR text. Commit as the no-reply identity.
 9. **Upstream offers** follow the "solid" policy in #35.
+
+**Upstream and peers:** see `PEERS.md` at the repo root. When I say "upstream", I mean the repo in its Upstream section; reuse a peer's code only as that file allows.
